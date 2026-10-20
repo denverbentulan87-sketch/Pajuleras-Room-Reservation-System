@@ -1,0 +1,6 @@
+# Apache settings (XAMPP). Harmless if your server ignores them.
+Options -Indexes
+DirectoryIndex index.php
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+</IfModule>
