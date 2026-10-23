@@ -65,6 +65,7 @@ function public_header(string $title, string $active = '', string $description =
         'features' => ['Features', $anchor('features'), 'sparkle'],
         'services' => ['Services', $anchor('services'), 'layers'],
         'rooms'    => ['Rooms',    url('rooms.php'),    'door'],
+        'pay'      => ['Pay by GCash', url('gcash_pay.php'), 'wallet'],
         'about'    => ['About',    $anchor('about'),    'info'],
         'contact'  => ['Contact',  $anchor('contact'),  'mail'],
     ];
@@ -100,7 +101,7 @@ function public_header(string $title, string $active = '', string $description =
     <nav id="site-nav" class="site-nav" aria-label="Main">
       <ul class="nav-links">
         <?php foreach ($nav as $key => [$label, $href, $ic]): ?>
-          <li><a class="nav-link<?= $active === $key ? ' is-active' : '' ?>" href="<?= e($href) ?>" data-nav="<?= e($key) ?>"<?= $active === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a></li>
+          <li><a class="nav-link<?= $key === 'pay' ? ' nav-link-pay' : '' ?><?= $active === $key ? ' is-active' : '' ?>" href="<?= e($href) ?>" data-nav="<?= e($key) ?>"<?= $key === 'pay' ? ' data-open-gcash' : '' ?><?= $active === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a></li>
         <?php endforeach; ?>
       </ul>
       <div class="nav-actions" data-menu-actions>
@@ -163,9 +164,15 @@ function public_footer(): void
 <?php if (basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) !== 'gcash_pay.php') { render_gcash_modal(); } ?>
 <?php if (basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) !== 'track.php') { render_track_modal(); } ?>
 <?php render_chat_widget(); ?>
+<?php $onGcashPage = basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) === 'gcash_pay.php'; ?>
+<div class="fab-dock">
 <?php if (!$onInquirePage): ?>
-<a class="fab<?= $landing ? ' fab-late' : ' is-visible' ?>" href="<?= e(url('inquire.php')) ?>" data-fab><?= icon('message') ?><span>Send an inquiry</span></a>
+  <a class="fab fab-late<?= $landing ? '' : ' is-visible' ?>" href="<?= e(url('inquire.php')) ?>" data-fab><?= icon('message') ?><span>Send an inquiry</span></a>
 <?php endif; ?>
+<?php if (!$onGcashPage): ?>
+  <a class="fab fab-gcash" href="<?= e(url('gcash_pay.php')) ?>" data-open-gcash><?= icon('wallet') ?><span>Pay with GCash</span></a>
+<?php endif; ?>
+</div>
 <a class="to-top tip tip-left" data-tip="Back to top" href="<?= e($landing ? '#home' : '#main') ?>" data-to-top><?= icon('arrow-up') ?><span class="sr-only">Back to top</span></a>
 <script src="<?= e(asset('assets/js/app.js')) ?>" defer></script>
 <script src="<?= e(asset('assets/js/site.js')) ?>" defer></script>
@@ -173,6 +180,9 @@ function public_footer(): void
 </body>
 </html>
 <?php
+    if ($landing) {
+        trigger_reminders_async();   // quietly checks payment reminders in the background (at most every 6 hours)
+    }
 }
 
 /* ==================================================================
@@ -184,6 +194,12 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
     $admin = $GLOBALS['ADMIN'] ?? ['full_name' => 'Landlord', 'username' => 'admin'];
     $unread = 0;
     $gcashPending = gcash_pending_count();
+    $manualCount = 0;
+    try {
+        $manualCount = (int)fetch_val("SELECT COUNT(*) FROM notifications WHERE status = 'manual'");
+    } catch (Throwable $e) {
+        $manualCount = 0;
+    }
     try {
         $unread = (int)fetch_val("SELECT COUNT(*) FROM inquiries WHERE admin_unread = 1 AND status <> 'closed'");
     } catch (Throwable $e) {
@@ -200,6 +216,7 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
         ],
         'Money' => [
             'payments'     => ['Payments', 'admin/payments.php', 'cash'],
+            'reminders'    => ['Payment reminders', 'admin/reminders.php', 'bell'],
             'gcash'        => ['GCash payments', 'admin/gcash.php', 'wallet'],
             'reports'      => ['Reports', 'admin/reports.php', 'chart'],
         ],
@@ -241,6 +258,7 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
             <?= icon($ic) ?><span class="side-label"><?= e($label) ?></span>
             <?php if ($key === 'inquiries' && $unread > 0): ?><span class="count"><?= $unread ?></span><?php endif; ?>
             <?php if ($key === 'gcash' && $gcashPending > 0): ?><span class="count"><?= $gcashPending ?></span><?php endif; ?>
+            <?php if ($key === 'reminders' && $manualCount > 0): ?><span class="count"><?= $manualCount ?></span><?php endif; ?>
           </a>
         <?php endforeach; ?>
       <?php endforeach; ?>

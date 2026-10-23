@@ -116,3 +116,35 @@ function create_gcash_payment(array $res, string $type, float $amount, string $d
     q("UPDATE payments SET receipt_no = ? WHERE id = ?", ['OR-' . str_pad((string)$nid, 6, '0', STR_PAD_LEFT), $nid]);
     return $nid;
 }
+
+/**
+ * A tenant checks what happened to a GCash report. Needs the report code AND the
+ * contact number on file, so nobody can read someone else's payment.
+ * @return array{ok:bool, errors?:string[], status?:string, title?:string, text?:string}
+ */
+function gcash_status_lookup(string $code, string $contact): array
+{
+    if (throttle_count('gcash_fail', 15) >= 8) {
+        return ['ok' => false, 'errors' => ['Too many unsuccessful tries. Please wait 15 minutes, or contact the landlord directly.']];
+    }
+    $code = strtoupper(trim($code));
+    $phone = normalize_phone($contact);
+    $row = $code !== '' && valid_phone($phone) ? fetch_one("SELECT s.*, t.contact_no, p.receipt_no FROM payment_submissions s
+                                                            JOIN tenants t ON t.id = s.tenant_id LEFT JOIN payments p ON p.id = s.payment_id
+                                                           WHERE s.submission_code = ?", [$code]) : null;
+    if (!$row || normalize_phone((string)$row['contact_no']) !== $phone) {
+        throttle_hit('gcash_fail');
+        return ['ok' => false, 'errors' => ['We could not find a report with that code and contact number. Please check them and try again.']];
+    }
+    $sent = money($row['amount']) . ' on ' . fmt_date($row['paid_date']) . ' (GCash reference ' . $row['gcash_ref'] . ')';
+    if ($row['status'] === 'approved') {
+        return ['ok' => true, 'status' => 'approved', 'title' => 'Confirmed and recorded',
+                'text' => 'The landlord confirmed your GCash payment of ' . $sent . '. Official receipt no. ' . ($row['receipt_no'] ?: 'on file') . '.'];
+    }
+    if ($row['status'] === 'rejected') {
+        return ['ok' => true, 'status' => 'rejected', 'title' => 'Not confirmed',
+                'text' => 'The landlord could not confirm your report of ' . $sent . '. Reason: ' . ($row['reject_reason'] ?: 'not stated') . '. No payment was recorded. Please contact the landlord' . (setting('phone') !== '' ? ' at ' . setting('phone') : '') . ' or send the report again with the correct details.'];
+    }
+    return ['ok' => true, 'status' => 'pending', 'title' => 'Waiting for the landlord to check it',
+            'text' => 'Your report of ' . $sent . ' was received on ' . fmt_datetime($row['created_at']) . '. It is not counted yet. You will get a message when it is confirmed.'];
+}

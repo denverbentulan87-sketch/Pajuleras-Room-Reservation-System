@@ -390,6 +390,12 @@ function inquiry_badge(string $status): string
     return badge($t, $tone);
 }
 
+function inquiry_auto_badge(?string $r): string
+{
+    $map = ['confirmed' => [' Room open', 'ok'], 'full' => [' Room full', 'bad'], 'info' => [' Open beds listed', 'info']];
+    return isset($map[$r]) ? ' ' . badge(trim($map[$r][0]), $map[$r][1]) : '';
+}
+
 function payment_type_label(string $t): string
 {
     return ['advance' => 'Advance payment', 'deposit' => 'Security deposit', 'rent' => 'Monthly rent', 'other' => 'Other', 'refund' => 'Refund'][$t] ?? ucfirst($t);

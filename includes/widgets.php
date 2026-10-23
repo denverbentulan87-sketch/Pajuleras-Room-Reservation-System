@@ -106,6 +106,12 @@ function render_inquiry_modal(): void
             </label>
           </div>
           <div class="row-2">
+            <label for="iq-gender">Gender <span class="req">*</span>
+              <select id="iq-gender" name="gender" required><option value="">Choose one</option><option value="female">Female</option><option value="male">Male</option></select>
+            </label>
+            <label for="iq-school">School or workplace <span class="opt">(optional)</span><input id="iq-school" type="text" name="school" maxlength="150" autocomplete="organization"></label>
+          </div>
+          <div class="row-2">
             <label for="iq-room">Room you like
               <select id="iq-room" name="room_id"><option value="">Not sure yet</option>
                 <?php foreach ($rooms as $r): ?><option value="<?= (int)$r['id'] ?>"><?= e(room_title($r)) ?> (<?= e($r['status_label']) ?>)</option><?php endforeach; ?>
@@ -116,14 +122,17 @@ function render_inquiry_modal(): void
           <label for="iq-msg">Your message <span class="req">*</span>
             <textarea id="iq-msg" name="message" rows="4" maxlength="2000" required placeholder="For example: I am a first-year student and need a bed space starting June. What do I need to bring?"></textarea>
           </label>
+          <label class="check consent" for="iq-consent"><input id="iq-consent" type="checkbox" name="consent" value="1" required>
+            <span>I agree that <?= e(setting('site_name', 'the boarding house')) ?> may keep these details to answer my inquiry and to register me if I rent a room. I can ask the landlord to erase them.</span></label>
           <button class="btn btn-primary btn-lg" type="submit" data-submit><span>Send inquiry</span></button>
         </form>
       </div>
       <div data-view="done" hidden>
         <div class="pbh-done">
-          <span class="pbh-check"><?= icon('check') ?></span>
+          <span class="pbh-check" data-auto-icon><?= icon('check') ?></span>
           <h2>Your inquiry was sent</h2>
-          <p class="muted">The landlord will read your message and reply as soon as possible.</p>
+          <div class="auto-reply" data-auto hidden><strong data-auto-title></strong><div data-auto-text></div></div>
+          <p class="muted">The landlord will read your message and reply personally.</p>
           <div class="code-box" data-code-box><span>Your inquiry code</span><strong class="code" data-code></strong>
             <button type="button" class="btn btn-sm" data-copy-code><?= icon('copy') ?><span>Copy code</span></button></div>
           <p><strong>Write this code down.</strong> Use it with your contact number to read the reply.</p>
@@ -213,12 +222,24 @@ function render_gcash_modal(): void
           <?= gcash_pay_fields('gp') ?>
           <button class="btn btn-primary btn-lg" type="submit" data-submit><span>Send payment report</span></button>
         </form>
+        <details class="gc-status">
+          <summary><?= icon('search') ?> Already sent a report? Check its status</summary>
+          <form class="form pbh-form" method="post" action="<?= e(url('gcash_pay.php')) ?>" data-ajax-form="gcashstatus" novalidate>
+            <?= csrf_field() ?><input type="hidden" name="action" value="status">
+            <div class="row-2">
+              <label for="gs-code">Report code <span class="req">*</span><input id="gs-code" type="text" name="code" maxlength="20" required placeholder="GC-ABC123" autocapitalize="characters" autocomplete="off"></label>
+              <label for="gs-tel">Your contact number <span class="req">*</span><input id="gs-tel" type="tel" name="contact_no" maxlength="30" required inputmode="tel" autocomplete="tel"></label>
+            </div>
+            <div class="auto-reply" data-status-result hidden><strong data-status-title></strong><div data-status-text></div></div>
+            <button class="btn" type="submit" data-submit><span>Check status</span></button>
+          </form>
+        </details>
       </div>
       <div data-view="done" hidden>
         <div class="pbh-done">
           <span class="pbh-check"><?= icon('check') ?></span>
           <h2>Payment report received</h2>
-          <p class="muted">The landlord will check your GCash payment of <strong data-amount></strong> and confirm it. Your official receipt is issued once it is approved.</p>
+          <p class="muted">The landlord will check your GCash payment of <strong data-amount></strong> and confirm it. Nothing is counted until then. You will get a message and an official receipt once it is approved, and you can check the status any time with this code.</p>
           <div class="code-box"><span>Your report code</span><strong class="code" data-code></strong></div>
           <div class="pbh-done-actions"><button type="button" class="btn btn-primary" data-close-dialog>Done</button></div>
         </div>

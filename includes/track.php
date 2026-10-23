@@ -51,7 +51,7 @@ function track_thread_html(array $inq, array $errors = [], bool $modal = false):
 <div class="thread" aria-label="Messages">
   <?php foreach ($messages as $m): ?>
     <div class="msg msg-<?= e($m['sender']) ?>">
-      <div class="msg-meta"><strong><?= $m['sender'] === 'admin' ? 'Landlord' : 'You' ?></strong> <span><?= e(fmt_datetime($m['created_at'])) ?></span></div>
+      <div class="msg-meta"><strong><?= $m['sender'] === 'admin' ? 'Landlord' : ($m['sender'] === 'system' ? 'Automatic reply' : 'You') ?></strong> <span><?= e(fmt_datetime($m['created_at'])) ?></span></div>
       <div class="msg-body"><?= nl2p($m['body']) ?></div>
     </div>
   <?php endforeach; ?>

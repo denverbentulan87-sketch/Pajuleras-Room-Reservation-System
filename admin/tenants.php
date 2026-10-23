@@ -73,7 +73,7 @@ page_head('Tenants', 'Registered tenants and customers.', '<a class="btn btn-pri
         <td><?= e($t['contact_no']) ?><?= $t['email'] ? '<br><span class="muted small">' . e($t['email']) . '</span>' : '' ?></td>
         <td><?= e($t['school_or_workplace'] ?: '—') ?></td>
         <td><?= $t['current_room'] ? 'Room ' . e($t['current_room']) : '<span class="muted">—</span>' ?></td>
-        <td><?= $t['status'] === 'active' ? badge('Active', 'ok') : badge('Inactive', 'neutral') ?></td>
+        <td><?= $t['status'] === 'active' ? badge('Active', 'ok') : badge('Inactive', 'neutral') ?><?= ($t['source'] ?? '') === 'inquiry' ? ' ' . badge('From inquiry', 'info') : '' ?></td>
         <td class="actions">
           <a class="btn btn-sm" href="<?= e(url('admin/tenant_view.php?id=' . (int)$t['id'])) ?>">View</a>
           <a class="btn btn-sm" href="<?= e(url('admin/tenant_form.php?id=' . (int)$t['id'])) ?>">Edit</a>

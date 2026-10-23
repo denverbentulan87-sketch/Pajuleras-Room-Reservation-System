@@ -2,6 +2,15 @@
 require __DIR__ . '/../includes/bootstrap.php';
 require_admin();
 
+// "Cron without cron": check payment reminders at most every 6 hours when the landlord opens the dashboard.
+try {
+    if (reminder_settings()['enabled'] && claim_reminder_run(6 * 3600)) {
+        run_reminders(false);
+    }
+} catch (Throwable $e) {
+    error_log('[PBH] reminder check failed: ' . $e->getMessage());
+}
+
 $rooms = rooms_with_status(false);
 $active = array_filter($rooms, fn($r) => $r['status'] === 'active');
 $totalBeds = array_sum(array_map(fn($r) => (int)$r['capacity'], $active));
@@ -52,6 +61,8 @@ $todo = [];
 if ($newInquiries) $todo[] = plural($newInquiries, 'unread inquiry', 'unread inquiries');
 $gcashPending = gcash_pending_count();
 if ($gcashPending) $todo[] = plural($gcashPending, 'GCash payment') . ' to review';
+$manualReminders = (int)fetch_val("SELECT COUNT(*) FROM notifications WHERE status = 'manual'");
+if ($manualReminders) $todo[] = plural($manualReminders, 'reminder') . ' to send by hand';
 if ($pendingRes)   $todo[] = plural($pendingRes, 'reservation') . ' to confirm';
 if ($balances)     $todo[] = plural(count($balances), 'tenant') . ' with an unpaid balance';
 ?>

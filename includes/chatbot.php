@@ -229,6 +229,8 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
         'rules'    => $is(['rules', 'rule', 'curfew', 'visitors', 'visitor', 'guest', 'guests', 'pets', 'pet', 'smoking', 'noise', 'allowed', 'not allowed', 'policy', 'policies', 'balaod', 'bisita', 'bisitahan', 'pwede', 'puwede', 'bawal', 'drinking', 'alcohol', 'overnight', 'sleepover']),
         'pay'      => $is(['pay', 'payment', 'payments', 'payment method', 'how to pay', 'bayad', 'magbayad', 'bayaran', 'receipt', 'receipts', 'cash', 'bank', 'bank transfer', 'schedule', 'due date', 'when to pay']),
         'gcash'    => $is(['gcash', 'g cash', 'online payment', 'pay online', 'remote', 'remotely', 'send money', 'e wallet', 'ewallet', 'pay from home']),
+        'due'      => $is(['due date', 'due', 'when do i pay', 'when to pay', 'when should i pay', 'next payment', 'late', 'late payment', 'missed', 'missing payment', 'overdue', 'balance', 'reminder', 'reminders', 'notify', 'notification', 'notifications', 'every month', 'monthly due', 'kanus a', 'kanus-a', 'kanusa', 'kailan magbayad']),
+        'safe'     => $is(['safe', 'secure', 'safety', 'legit', 'legitimate', 'scam', 'trust', 'trusted', 'trustworthy', 'privacy', 'personal information', 'my details', 'is it safe']),
         'where'    => $is(['where', 'location', 'address', 'located', 'directions', 'direction', 'map', 'how to get', 'asa', 'diin', 'nasaan', 'inabanga', 'bohol', 'poblacion', 'near']),
         'contact'  => $is(['contact', 'phone', 'number', 'call', 'text', 'sms', 'email', 'facebook', 'fb', 'messenger', 'hours', 'open hours', 'what time', 'office hours', 'open now', 'reach', 'talk', 'tawag', 'kontak']),
         'landlord' => $is(['landlord', 'landlady', 'owner', 'admin', 'administrator', 'manager', 'who runs', 'who owns', 'in charge', 'boss', 'sir', 'maam', 'mrs', 'tag-iya', 'tag iya']),
@@ -245,7 +247,7 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
     $best = (int)$scores[$top];
     // a few intents win ties in a sensible order
     if ($best > 0) {
-        foreach (['gcash', 'deposit', 'track', 'movein', 'amen', 'gender', 'rates', 'rooms'] as $pref) {
+        foreach (['gcash', 'due', 'deposit', 'track', 'movein', 'amen', 'gender', 'rates', 'rooms'] as $pref) {
             if ($scores[$pref] === $best && $pref !== $top && !in_array($top, ['greet', 'bye'], true)) {
                 $top = $pref;
                 break;
@@ -253,7 +255,8 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
         }
     }
     // "how much" + a payment word is about rates, "gcash" always about gcash
-    if ($scores['gcash'] > 0) $top = 'gcash';
+    if ($scores['safe'] > 0) $top = 'safe';
+    elseif ($scores['gcash'] > 0) $top = 'gcash';
 
     switch ($best > 0 ? $top : 'none') {
         case 'greet':
@@ -321,7 +324,7 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
 
         case 'gcash':
             $t = $kb['gcash'] !== ''
-                ? 'Yes, you can pay by **GCash** from anywhere. Send the amount to **' . $kb['gcash'] . '**' . ($kb['landlord'] !== '' ? ' (' . $kb['landlord'] . ')' : '') . ", then tap the button below and report your reference number. The landlord checks it and issues your official receipt."
+                ? 'Yes, you can pay by **GCash** from anywhere. Send the amount to **' . $kb['gcash'] . '**' . ($kb['landlord'] !== '' ? ' (' . $kb['landlord'] . ')' : '') . ", then tap the button below and report your GCash reference number. You get a report code (use it to check the status any time). The landlord checks it, you receive a message, and an official receipt is issued."
                 : 'GCash payments are accepted, but the landlord has not posted a number yet. Please contact the landlord first.';
             return $out($t, [['type' => 'gcash', 'label' => 'Report a GCash payment'], chat_act_inquiry('Message the landlord')], ['How to pay', 'Contact the landlord']);
 
@@ -329,6 +332,15 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
             $t = "**How to pay:**\n• Cash, handed to the landlord\n• GCash, from anywhere" . ($kb['gcash'] !== '' ? ' (' . $kb['gcash'] . ')' : '') . "\n• Bank transfer, if the landlord agrees\nAn official receipt is issued for every payment.";
             if ($kb['payments']) $t .= "\n\n**Terms:**\n" . implode("\n", array_map(fn($l) => '• ' . $l, array_slice($kb['payments'], 0, 5)));
             return $out($t, [['type' => 'gcash', 'label' => 'Pay with GCash'], chat_act_link('Rates & house rules', 'policies.php')], ['Requirements', 'Available rooms']);
+
+        case 'due':
+            $t = "**When rent is due:** one month after you move in, then every month on the same day. If you moved in on the 5th, your rent is due every 5th.";
+            $t .= "\n\n**Reminders:** you get a message by e-mail or text (or Messenger) a few days before the due date, on the due date, and again if a payment is missing or only partly paid. It is never sent twice for the same due date.";
+            $t .= "\n\nIf you missed a payment, the unpaid amount stays on your account as a balance until it is paid." . ($kb['gcash'] !== '' ? ' You can pay by cash or GCash.' : '');
+            return $out($t, [['type' => 'gcash', 'label' => 'Pay with GCash'], chat_act_link('Check my inquiry', 'track.php')], ['How to pay', 'Contact the landlord']);
+
+        case 'safe':
+            return $out("**Your payments and details are protected:**\n• Every GCash report gets a code, and nothing is counted until the landlord checks it against the GCash history\n• You get an official receipt for every confirmed payment, and you can check a report's status any time\n• Rooms are only held when the landlord confirms your reservation, never by an automatic reply\n• Your details are kept only to answer your inquiry and manage your stay, and you can ask the landlord to erase them\n• Passwords and payment records are never shown to other people", [['type' => 'gcash', 'label' => 'Pay with GCash']], ['How to pay', 'Requirements', 'Contact the landlord']);
 
         case 'where':
             $t = $kb['address'] !== '' ? 'We are at **' . $kb['address'] . '**.' : 'The address is on our contact section.';

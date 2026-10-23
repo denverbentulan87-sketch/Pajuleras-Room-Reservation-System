@@ -47,6 +47,7 @@ function icon(string $name, string $class = ''): string
         'arrow-up'  => '<path d="M12 19V5M6 11l6-6 6 6"/>',
         'chevron'   => '<path d="m6 9 6 6 6-6"/>',
         'tag'       => '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/>',
+        'bell'      => '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
         'send'      => '<path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/>',
         'refresh'   => '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
         'copy'      => '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',

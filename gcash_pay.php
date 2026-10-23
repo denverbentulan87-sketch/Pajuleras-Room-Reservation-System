@@ -3,6 +3,7 @@ require __DIR__ . '/includes/bootstrap.php';
 
 $ajax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch';
 $result = null;
+$statusResult = null;
 
 if (is_post()) {
     $sent = (string)($_POST['_csrf'] ?? '');
@@ -15,7 +16,15 @@ if (is_post()) {
         }
         abort(419);
     }
-    if (post_str('website', 100) !== '') {            // honeypot
+    if (post_str('action', 10) === 'status') {
+        $result = gcash_status_lookup(post_str('code', 20), post_str('contact_no', 30));
+        if ($ajax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $statusResult = $result;
+    } elseif (post_str('website', 100) !== '') {            // honeypot
         $result = ['ok' => true, 'errors' => [], 'code' => 'GC-RECEIVED', 'amount' => ''];
     } else {
         try {
@@ -34,7 +43,7 @@ if (is_post()) {
         echo json_encode($result);
         exit;
     }
-    if ($result['ok']) {
+    if (!isset($statusResult) && $result && $result['ok']) {
         $_SESSION['gcash_done'] = ['code' => $result['code'], 'amount' => $result['amount']];
         redirect('gcash_pay.php?sent=1');
     }
@@ -63,9 +72,23 @@ public_header('Pay with GCash', 'inquire', 'Send your rent or advance payment by
 <?php else: ?>
   <form class="card form" method="post" enctype="multipart/form-data" action="<?= e(url('gcash_pay.php')) ?>" novalidate>
     <?= csrf_field() ?>
-    <?php render_errors($result['errors'] ?? []); ?>
+    <?php if (!$statusResult) { render_errors($result['errors'] ?? []); } ?>
+    <?= gcash_send_card() ?>
     <?= gcash_pay_fields('pg', $_POST) ?>
     <button class="btn btn-primary btn-lg" type="submit">Send payment report</button>
+  </form>
+  <form class="card form" method="post" action="<?= e(url('gcash_pay.php')) ?>" novalidate style="margin-top:1.2rem">
+    <?= csrf_field() ?><input type="hidden" name="action" value="status">
+    <h2>Already sent a report? Check it</h2>
+    <?php if ($statusResult && !$statusResult['ok']) { render_errors($statusResult['errors']); } ?>
+    <?php if ($statusResult && $statusResult['ok']): ?>
+      <div class="auto-reply auto-<?= ['approved' => 'confirmed', 'pending' => 'info', 'rejected' => 'full'][$statusResult['status']] ?>"><strong><?= e($statusResult['title']) ?></strong><div><?= nl2p($statusResult['text']) ?></div></div>
+    <?php endif; ?>
+    <div class="row-2">
+      <label>Report code <span class="req">*</span><input type="text" name="code" maxlength="20" required placeholder="GC-ABC123" autocapitalize="characters" autocomplete="off"></label>
+      <label>Your contact number <span class="req">*</span><input type="tel" name="contact_no" maxlength="30" required inputmode="tel" autocomplete="tel"></label>
+    </div>
+    <button class="btn" type="submit">Check status</button>
   </form>
 <?php endif; ?>
 </div></section>

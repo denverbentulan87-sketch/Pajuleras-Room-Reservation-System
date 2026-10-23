@@ -382,7 +382,8 @@ table.plain th, table.plain td { border-bottom: 1px solid var(--line); }
    Floating "Send an inquiry" button, footer landlord CTA,
    interactive photos (hover zoom, pointer follow, lightbox)
    ========================================================== */
-.fab { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 71; display: inline-flex; align-items: center; gap: .6rem; min-height: 54px; padding: .8rem 1.35rem; border-radius: 999px; color: #fff !important; font-weight: 650; font-size: 1rem; text-decoration: none; background: linear-gradient(180deg, #25694f, var(--leaf-d)); border: 1.5px solid var(--leaf-d); box-shadow: 0 14px 30px -10px rgba(18,55,42,.7), 0 1px 0 rgba(255,255,255,.2) inset; transition: transform .3s var(--ease), box-shadow .3s var(--ease), opacity .3s var(--ease), visibility .3s; overflow: hidden; }
+.fab-dock { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 71; display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; }
+.fab { position: relative; display: inline-flex; align-items: center; gap: .6rem; min-height: 54px; padding: .8rem 1.35rem; border-radius: 999px; color: #fff !important; font-weight: 650; font-size: 1rem; text-decoration: none; background: linear-gradient(180deg, #25694f, var(--leaf-d)); border: 1.5px solid var(--leaf-d); box-shadow: 0 14px 30px -10px rgba(18,55,42,.7), 0 1px 0 rgba(255,255,255,.2) inset; transition: transform .3s var(--ease), box-shadow .3s var(--ease), opacity .3s var(--ease), visibility .3s; overflow: hidden; }
 .fab .ic { width: 1.25rem; height: 1.25rem; transition: transform .35s var(--spring); }
 .fab::before { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.28) 50%, transparent 65%); transform: translateX(-120%); transition: transform .7s var(--ease); }
 .fab:hover { transform: translateY(-3px); box-shadow: 0 20px 36px -12px rgba(18,55,42,.8); color: #fff; }
@@ -390,10 +391,14 @@ table.plain th, table.plain td { border-bottom: 1px solid var(--line); }
 .fab:hover .ic { transform: rotate(-10deg) scale(1.15); }
 .fab:active { transform: scale(.96); }
 .fab span { position: relative; }
-.js .fab-late:not(.is-visible) { opacity: 0; visibility: hidden; transform: translateY(16px); }
-.fab.is-visible { animation: fab-ring 3.4s 1.2s ease-in-out infinite; }
+.js .fab-late:not(.is-visible) { display: none; }
+.fab-late.is-visible { animation: fab-in .4s var(--ease); }
+@keyframes fab-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.fab-gcash { background: linear-gradient(180deg, #2a7be4, #0b57c4); border-color: #0b57c4; box-shadow: 0 14px 30px -10px rgba(11,87,196,.75), 0 1px 0 rgba(255,255,255,.25) inset; animation: gcash-ring 3.4s 1.2s ease-in-out infinite; }
+.fab-gcash:hover { box-shadow: 0 20px 36px -12px rgba(11,87,196,.85); }
+@keyframes gcash-ring { 0%, 100% { box-shadow: 0 14px 30px -10px rgba(11,87,196,.75), 0 0 0 0 rgba(42,123,228,.4); } 50% { box-shadow: 0 14px 30px -10px rgba(11,87,196,.75), 0 0 0 9px rgba(42,123,228,0); } }
 @keyframes fab-ring { 0%, 100% { box-shadow: 0 14px 30px -10px rgba(18,55,42,.7), 0 0 0 0 rgba(31,90,67,.35); } 50% { box-shadow: 0 14px 30px -10px rgba(18,55,42,.7), 0 0 0 9px rgba(31,90,67,0); } }
-.to-top { bottom: 5.3rem; right: 1.35rem; }
+.to-top { bottom: 9.3rem; right: 1.35rem; }
 
 .foot-cta-wrap { padding-top: 2.4rem; }
 .foot-cta { display: flex; align-items: center; justify-content: space-between; gap: 1.2rem 2rem; flex-wrap: wrap; padding: 1.4rem 1.6rem; border-radius: 20px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16); transition: background .3s, transform .3s var(--ease); }
@@ -432,10 +437,18 @@ table.plain th, table.plain td { border-bottom: 1px solid var(--line); }
 @keyframes lb-pop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 640px) {
-  .fab { right: .9rem; bottom: .9rem; min-height: 50px; padding: .7rem 1.15rem; font-size: .95rem; }
-  .to-top { right: 1rem; bottom: 4.9rem; width: 44px; height: 44px; }
+  .fab-dock { right: .9rem; bottom: .9rem; gap: .5rem; }
+  .fab { min-height: 50px; padding: .7rem 1.15rem; font-size: .95rem; }
+  .to-top { right: 1rem; bottom: 8.4rem; width: 44px; height: 44px; }
   .site-footer { padding-bottom: 4.5rem; }
   .foot-cta { padding: 1.2rem; }
   .foot-cta .btn { width: 100%; }
 }
-@media (prefers-reduced-motion: reduce) { .fab.is-visible { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .fab-gcash, .fab-late.is-visible { animation: none; } }
+
+/* "Pay by GCash" stands out in the menu */
+.nav-link-pay { color: #0b57c4 !important; font-weight: 650; background: #e6f0ff; border-radius: 999px; padding-inline: 1rem !important; transition: background .2s, color .2s, transform .25s var(--ease); }
+.nav-link-pay::after { display: none !important; }
+.nav-link-pay:hover { background: #0b57c4; color: #fff !important; transform: translateY(-2px); }
+.is-top .nav-link-pay { background: rgba(255,255,255,.92); }
+@media (max-width: 1180px) { .nav-link-pay { display: inline-block; margin: .25rem 0; } }

@@ -43,7 +43,7 @@
 
   /* ---- Scroll-spy: highlight the nav link of the section in view ---- */
   var links = $$('[data-nav]');
-  var spyMap = { home: 'home', features: 'features', services: 'services', how: 'services', about: 'about', faq: 'about', contact: 'contact' };
+  var spyMap = { home: 'home', features: 'features', services: 'services', how: 'services', about: 'about', faq: 'about', contact: 'contact', pay: 'pay' };
   if (hasIO && document.body.classList.contains('landing') && links.length) {
     var setActive = function (key) {
       links.forEach(function (a) {

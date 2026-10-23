@@ -107,6 +107,9 @@ CREATE TABLE IF NOT EXISTS `tenants` (
   `guardian_contact`   VARCHAR(20)  NULL,
   `notes`              TEXT NULL,
   `status`             ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  `messenger`          VARCHAR(120) NULL,
+  `source`             ENUM('admin','inquiry') NOT NULL DEFAULT 'admin',
+  `consent_at`         DATETIME NULL,
   `anonymized_at`      DATETIME NULL,
   `created_at`         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -128,6 +131,11 @@ CREATE TABLE IF NOT EXISTS `inquiries` (
   `room_id`           INT UNSIGNED NULL,
   `preferred_move_in` DATE NULL,
   `occupation`        ENUM('student','employee','other') NULL,
+  `gender`            ENUM('male','female') NULL,
+  `school_or_workplace` VARCHAR(150) NULL,
+  `tenant_id`         INT UNSIGNED NULL,
+  `auto_result`       ENUM('confirmed','full','info') NULL,
+  `consent_at`        DATETIME NULL,
   `subject`           VARCHAR(150) NOT NULL,
   `status`            ENUM('new','replied','converted','closed') NOT NULL DEFAULT 'new',
   `admin_unread`      TINYINT(1) NOT NULL DEFAULT 1,
@@ -138,13 +146,14 @@ CREATE TABLE IF NOT EXISTS `inquiries` (
   UNIQUE KEY `uq_inquiry_ref` (`ref_code`),
   KEY `idx_inquiry_status` (`status`, `admin_unread`),
   KEY `idx_inquiry_ip` (`ip`, `created_at`),
-  CONSTRAINT `fk_inquiry_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_inquiry_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_inquiry_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `inquiry_messages` (
   `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `inquiry_id` INT UNSIGNED NOT NULL,
-  `sender`     ENUM('customer','admin') NOT NULL,
+  `sender`     ENUM('customer','admin','system') NOT NULL,
   `body`       TEXT NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -249,6 +258,33 @@ CREATE TABLE IF NOT EXISTS `payment_submissions` (
   CONSTRAINT `fk_sub_res`    FOREIGN KEY (`reservation_id`) REFERENCES `reservations` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_sub_tenant` FOREIGN KEY (`tenant_id`)      REFERENCES `tenants` (`id`)      ON DELETE RESTRICT,
   CONSTRAINT `chk_sub_amount` CHECK (`amount` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Messages the system sends (or prepares) for tenants: rent reminders,
+-- GCash decisions, inquiry replies. Kept as a log so nothing is unclear.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `tenant_id`      INT UNSIGNED NULL,
+  `reservation_id` INT UNSIGNED NULL,
+  `inquiry_id`     INT UNSIGNED NULL,
+  `type`           VARCHAR(30)  NOT NULL,
+  `channel`        ENUM('email','sms','messenger','manual') NOT NULL,
+  `recipient`      VARCHAR(190) NULL,
+  `subject`        VARCHAR(190) NULL,
+  `body`           TEXT NOT NULL,
+  `status`         ENUM('sent','failed','manual','skipped') NOT NULL,
+  `error`          VARCHAR(255) NULL,
+  `dedupe_key`     VARCHAR(120) NULL,
+  `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `sent_at`        DATETIME NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_notif_dedupe` (`dedupe_key`, `status`),
+  KEY `idx_notif_status` (`status`, `created_at`),
+  KEY `idx_notif_tenant` (`tenant_id`),
+  CONSTRAINT `fk_notif_tenant` FOREIGN KEY (`tenant_id`)      REFERENCES `tenants` (`id`)      ON DELETE SET NULL,
+  CONSTRAINT `fk_notif_res`    FOREIGN KEY (`reservation_id`) REFERENCES `reservations` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------

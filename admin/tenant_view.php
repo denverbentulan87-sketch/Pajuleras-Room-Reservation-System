@@ -30,7 +30,7 @@ if (is_post()) {
                 $inqIds = array_column(fetch_all("SELECT id FROM inquiries WHERE contact_no = ? OR id IN (SELECT inquiry_id FROM reservations WHERE tenant_id = ? AND inquiry_id IS NOT NULL)", [$oldPhone, $id]), 'id');
                 foreach ($inqIds as $iid) {
                     q("DELETE FROM inquiry_messages WHERE inquiry_id = ?", [$iid]);
-                    q("UPDATE inquiries SET name = ?, contact_no = '00000000000', email = NULL, ip = NULL, status = 'closed', admin_unread = 0 WHERE id = ?", [$label, $iid]);
+                    q("UPDATE inquiries SET name = ?, contact_no = '00000000000', email = NULL, school_or_workplace = NULL, ip = NULL, status = 'closed', admin_unread = 0 WHERE id = ?", [$label, $iid]);
                     q("INSERT INTO inquiry_messages (inquiry_id, sender, body) VALUES (?, 'admin', '[Messages erased at the person''s request]')", [$iid]);
                 }
                 q("UPDATE reservations SET notes = NULL WHERE tenant_id = ?", [$id]);
@@ -39,7 +39,8 @@ if (is_post()) {
                 if (mb_strlen($oldName) >= 3) {
                     q("UPDATE activity_log SET details = REPLACE(details, ?, ?) WHERE details LIKE ?", [$oldName, $label, like_escape($oldName)]);
                 }
-                q("UPDATE tenants SET full_name = ?, birth_date = NULL, contact_no = '00000000000', email = NULL, home_address = NULL,
+                q("UPDATE notifications SET recipient = NULL, subject = NULL, body = '[erased]' WHERE tenant_id = ?", [$id]);
+                q("UPDATE tenants SET full_name = ?, birth_date = NULL, contact_no = '00000000000', email = NULL, messenger = NULL, home_address = NULL,
                           school_or_workplace = NULL, id_presented = NULL, guardian_name = NULL, guardian_contact = NULL, notes = NULL,
                           status = 'inactive', anonymized_at = NOW() WHERE id = ?", [$label, $id]);
                 log_activity('tenant_erased', 'tenant', $id, 'Personal details of ' . $t['tenant_code'] . ' erased');
@@ -83,6 +84,8 @@ $openRes = (int)fetch_val("SELECT COUNT(*) FROM reservations WHERE tenant_id = ?
       <div><dt>Birth date</dt><dd><?= e(fmt_date($t['birth_date'])) ?></dd></div>
       <div><dt>Contact number</dt><dd><?= e($t['contact_no']) ?></dd></div>
       <div><dt>Email</dt><dd><?= e($t['email'] ?: '—') ?></dd></div>
+      <div><dt>Messenger</dt><dd><?= e($t['messenger'] ?? '') ?: '—' ?></dd></div>
+      <?php if (($t['source'] ?? '') === 'inquiry'): ?><div><dt>Registered</dt><dd>Automatically, from a website inquiry</dd></div><?php endif; ?>
       <div><dt>Home address</dt><dd><?= e($t['home_address'] ?: '—') ?></dd></div>
       <div><dt>Occupation</dt><dd><?= e(occupation_label($t['occupation'])) ?><?= $t['school_or_workplace'] ? ', ' . e($t['school_or_workplace']) : '' ?></dd></div>
       <div><dt>Valid ID presented</dt><dd><?= e($t['id_presented'] ?: '—') ?></dd></div>

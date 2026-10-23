@@ -122,3 +122,19 @@
   });
   if (dlg.hasAttribute('data-autoopen')) { open(); }
 })();
+
+/* Copy a prepared message (admin > Payment reminders) */
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-copy-text]');
+  if (!b) { return; }
+  var text = b.getAttribute('data-copy-text');
+  var done = function () {
+    var label = b.querySelector('span');
+    if (!label) { return; }
+    var old = label.textContent; label.textContent = 'Copied!';
+    window.setTimeout(function () { label.textContent = old; }, 1600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, function () { /* ignore */ });
+  }
+});

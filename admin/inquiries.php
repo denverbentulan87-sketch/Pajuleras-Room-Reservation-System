@@ -56,10 +56,10 @@ page_head('Inquiries', 'Messages from customers on the public website.');
           <span class="inbox-top">
             <strong><?= e($i['name']) ?></strong>
             <span class="muted small"><?= e($i['ref_code']) ?><?= $i['room_no'] ? ' &middot; Room ' . e($i['room_no']) : '' ?></span>
-            <?= inquiry_badge($i['status']) ?>
+            <?= inquiry_badge($i['status']) ?><?= inquiry_auto_badge($i['auto_result'] ?? null) ?>
             <span class="meta"><?= e(fmt_datetime($i['updated_at'])) ?></span>
           </span>
-          <span class="inbox-preview"><?= $i['last_sender'] === 'admin' ? 'You: ' : '' ?><?= e(mb_strimwidth((string)$i['last_body'], 0, 140, '…')) ?></span>
+          <span class="inbox-preview"><?= $i['last_sender'] === 'admin' ? 'You: ' : ($i['last_sender'] === 'system' ? 'Automatic reply: ' : '') ?><?= e(mb_strimwidth((string)$i['last_body'], 0, 140, '…')) ?></span>
         </a>
       </li>
     <?php endforeach; ?>

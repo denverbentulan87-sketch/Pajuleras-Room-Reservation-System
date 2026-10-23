@@ -2,7 +2,7 @@
 require __DIR__ . '/../includes/bootstrap.php';
 $admin = require_admin(true);   // reachable even while the default password must still be changed
 
-$tab = in_array(get_str('tab'), ['business', 'policies', 'account'], true) ? get_str('tab') : 'business';
+$tab = in_array(get_str('tab'), ['business', 'policies', 'notify', 'account'], true) ? get_str('tab') : 'business';
 if ((int)$admin['must_change_password'] === 1) {
     $tab = 'account';
 }
@@ -60,6 +60,44 @@ if (is_post()) {
             log_activity('settings_updated', 'settings', null, 'Policies updated');
             flash('success', 'Policies saved. They are now shown on the public website.');
             redirect('admin/settings.php?tab=policies');
+        }
+    } elseif ($form === 'notify' && (int)$admin['must_change_password'] !== 1) {
+        $tab = 'notify';
+        $before = post_str('reminder_days_before', 2);
+        $repeat = post_str('reminder_repeat_days', 2);
+        $max = post_str('reminder_max', 2);
+        if (!ctype_digit($before) || (int)$before > 14) $errors[] = 'Days before the due date must be a whole number from 0 to 14.';
+        if (!ctype_digit($repeat) || (int)$repeat < 1 || (int)$repeat > 30) $errors[] = 'Repeat every must be a whole number of days from 1 to 30.';
+        if (!ctype_digit($max) || (int)$max < 1 || (int)$max > 20) $errors[] = 'The most reminders per missed payment must be from 1 to 20.';
+        if (!$errors) {
+            save_setting('reminders_enabled', isset($_POST['reminders_enabled']) ? '1' : '0');
+            save_setting('reminder_days_before', (string)(int)$before);
+            save_setting('reminder_repeat_days', (string)(int)$repeat);
+            save_setting('reminder_max', (string)(int)$max);
+            log_activity('settings_updated', 'settings', null, 'Reminder settings updated');
+            flash('success', 'Reminder settings saved.');
+            redirect('admin/settings.php?tab=notify');
+        }
+    } elseif ($form === 'notifytest' && (int)$admin['must_change_password'] !== 1) {
+        $tab = 'notify';
+        $kind = post_str('kind', 6);
+        $to = post_str('to', 150);
+        if ($kind === 'email') {
+            $err = null;
+            if (!mail_configured()) $errors[] = 'E-mail is not set up yet. See the steps below.';
+            elseif (!valid_email($to)) $errors[] = 'Type the e-mail address to send the test to.';
+            elseif (smtp_send($to, 'Test message from ' . setting('site_name', 'your boarding house'), "This is a test.\n\nIf you can read this, tenants will receive their payment reminders by e-mail.", $err)) {
+                flash('success', 'Test e-mail sent to ' . $to . '. Check the inbox (and the spam folder).');
+                redirect('admin/settings.php?tab=notify');
+            } else $errors[] = 'The test e-mail failed. ' . $err;
+        } elseif ($kind === 'sms') {
+            $err = null;
+            if (!sms_configured()) $errors[] = 'SMS is not set up yet. See the steps below.';
+            elseif (!valid_phone(normalize_phone($to))) $errors[] = 'Type the mobile number to send the test to (for example 09123456789).';
+            elseif (sms_send($to, setting('site_name', 'Boarding house') . ': test message. Tenants will get payment reminders by SMS.', $err)) {
+                flash('success', 'Test text message sent to ' . normalize_phone($to) . '.');
+                redirect('admin/settings.php?tab=notify');
+            } else $errors[] = 'The test text message failed. ' . $err;
         }
     } elseif ($form === 'account') {
         $tab = 'account';
@@ -119,6 +157,7 @@ $must = (int)$admin['must_change_password'] === 1;
       <a href="<?= e(url('admin/settings.php?tab=business')) ?>"<?= $tab === 'business' ? ' class="active"' : '' ?>>Boarding house</a>
       <a href="<?= e(url('admin/settings.php?tab=policies')) ?>"<?= $tab === 'policies' ? ' class="active"' : '' ?>>Rates, requirements &amp; rules</a>
     <?php endif; ?>
+    <?php if (!$must): ?><a href="<?= e(url('admin/settings.php?tab=notify')) ?>"<?= $tab === 'notify' ? ' class="active"' : '' ?>>Reminders &amp; notifications</a><?php endif; ?>
     <a href="<?= e(url('admin/settings.php?tab=account')) ?>"<?= $tab === 'account' ? ' class="active"' : '' ?>>My account</a>
   </div>
 
@@ -170,6 +209,47 @@ $must = (int)$admin['must_change_password'] === 1;
     <label>House rules <span class="opt">(one per line)</span><textarea name="house_rules" rows="7" maxlength="3000"><?= e($OLD['house_rules'] ?? '') ?></textarea></label>
     <div class="form-actions"><button class="btn btn-primary" type="submit">Save policies</button></div>
   </form>
+
+  <?php elseif ($tab === 'notify'): $rc = reminder_settings(); $ch = notify_channels(); $base = public_base_url(); ?>
+  <form class="form" method="post" novalidate>
+    <?= csrf_field() ?><input type="hidden" name="form" value="notify">
+    <label class="check"><input type="checkbox" name="reminders_enabled" value="1"<?= $rc['enabled'] ? ' checked' : '' ?>> <span><strong>Send payment reminders automatically</strong><br><span class="hint">Tenants are reminded when rent is coming up, due today, missing, or only partly paid.</span></span></label>
+    <div class="row-3">
+      <label>Remind this many days before the due date<input type="number" name="reminder_days_before" value="<?= (int)$rc['before'] ?>" min="0" max="14" required></label>
+      <label>While unpaid, repeat every (days)<input type="number" name="reminder_repeat_days" value="<?= (int)$rc['repeat'] ?>" min="1" max="30" required></label>
+      <label>Stop after this many reminders<input type="number" name="reminder_max" value="<?= (int)$rc['max'] ?>" min="1" max="20" required></label>
+    </div>
+    <p class="hint">Rent is due one month after move-in, then every month on the same day. A reminder is never sent twice for the same due date.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save</button></div>
+  </form>
+
+  <h3 class="form-sub">How messages are sent</h3>
+  <div class="chan-row">
+    <div class="chan <?= $ch['email'] ? 'chan-on' : 'chan-off' ?>"><strong>E-mail</strong><span><?= $ch['email'] ? 'Set up' : 'Not set up' ?></span></div>
+    <div class="chan <?= $ch['sms'] ? 'chan-on' : 'chan-off' ?>"><strong>Text message (SMS)</strong><span><?= $ch['sms'] ? 'Set up' : 'Not set up' ?></span></div>
+    <div class="chan chan-hand"><strong>Messenger</strong><span>One tap from Admin &gt; Payment reminders</span></div>
+  </div>
+  <form class="form test-form" method="post" novalidate>
+    <?= csrf_field() ?><input type="hidden" name="form" value="notifytest">
+    <div class="row-2">
+      <label>Send a test to<input type="text" name="to" placeholder="your e-mail or mobile number" maxlength="150"></label>
+      <div class="form-actions"><button class="btn" type="submit" name="kind" value="email"<?= $ch['email'] ? '' : ' disabled' ?>>Test e-mail</button> <button class="btn" type="submit" name="kind" value="sms"<?= $ch['sms'] ? '' : ' disabled' ?>>Test text message</button></div>
+    </div>
+  </form>
+  <details class="howto"><summary>How to set up e-mail and text messages</summary>
+    <p>For safety, the passwords and keys are kept in the file <code>config/config.php</code> (not in the database). Open it with Notepad, fill in the details below, save, then press the test buttons above.</p>
+    <ol>
+      <li><strong>E-mail (free):</strong> use a Gmail account. Turn on 2-step verification, create an <em>App password</em> (Google Account &gt; Security), then in <code>'mail'</code> set <code>host</code> = <code>smtp.gmail.com</code>, <code>port</code> = <code>587</code>, <code>secure</code> = <code>tls</code>, <code>user</code> = your Gmail address and <code>pass</code> = the app password.</li>
+      <li><strong>Text messages (paid per message):</strong> create an account at <em>semaphore.co</em> (a Philippine SMS service) and copy your API key into <code>'sms'</code> &rarr; <code>api_key</code>. Optionally set an approved <code>sender</code> name.</li>
+      <li><strong>Messenger:</strong> save each tenant's Messenger username on their tenant record. Facebook does not allow automatic messages without an approved app, so you send it with one tap from <em>Payment reminders</em>.</li>
+    </ol>
+    <p><strong>Make it run every day, even when nobody opens the website:</strong></p>
+    <ul>
+      <li><strong>Windows (XAMPP):</strong> Task Scheduler &gt; Create Basic Task &gt; Daily &gt; Start a program: <code>C:\xampp\php\php.exe</code> with the argument <code><?= e(APP_ROOT) ?>\cron\reminders.php</code>.</li>
+      <li><strong>Web hosting (cPanel cron) or an uptime service:</strong> open this address once a day: <code><?= e(($base !== '' ? $base : 'https://your-site') . '/cron_run.php?token=' . cron_token()) ?></code> (keep it private).</li>
+      <li>Without either, the website also checks by itself every 6 hours when someone opens the home page or you open the dashboard.</li>
+    </ul>
+  </details>
 
   <?php else: ?>
   <form class="form" method="post" novalidate autocomplete="off">

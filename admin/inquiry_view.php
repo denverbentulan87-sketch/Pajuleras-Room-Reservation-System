@@ -62,7 +62,7 @@ $existingTenant = fetch_one("SELECT id, full_name, tenant_code FROM tenants WHER
 $roomInfo = $i['room_id'] ? (rooms_with_status(false, (int)$i['room_id'])[0] ?? null) : null;
 
 admin_header('Inquiry ' . $i['ref_code'], 'inquiries');
-page_head($i['name'], $i['subject'] . ' (' . $i['ref_code'] . ')', inquiry_badge($i['status']));
+page_head($i['name'], $i['subject'] . ' (' . $i['ref_code'] . ')', inquiry_badge($i['status']) . inquiry_auto_badge($i['auto_result'] ?? null));
 ?>
 <div class="grid-thread">
   <div>
@@ -71,7 +71,7 @@ page_head($i['name'], $i['subject'] . ' (' . $i['ref_code'] . ')', inquiry_badge
       <div class="thread" aria-label="Messages">
         <?php foreach ($messages as $m): ?>
           <div class="msg msg-<?= e($m['sender']) ?>">
-            <div class="msg-meta"><strong><?= $m['sender'] === 'admin' ? 'You' : e($i['name']) ?></strong> <span><?= e(fmt_datetime($m['created_at'])) ?></span></div>
+            <div class="msg-meta"><strong><?= $m['sender'] === 'admin' ? 'You' : ($m['sender'] === 'system' ? 'Automatic reply sent to ' . e(first_name($i['name'])) : e($i['name'])) ?></strong> <span><?= e(fmt_datetime($m['created_at'])) ?></span></div>
             <div class="msg-body"><?= nl2p($m['body']) ?></div>
           </div>
         <?php endforeach; ?>

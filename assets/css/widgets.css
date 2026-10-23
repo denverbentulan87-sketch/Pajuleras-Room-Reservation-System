@@ -166,3 +166,26 @@
   .chat-launch { padding: .45rem; }
   .chat-dot { left: 34px; }
 }
+
+/* ---------- Automatic inquiry reply (confirmed / full) ---------- */
+.auto-reply { width: 100%; text-align: left; border-radius: 16px; padding: 1rem 1.15rem; border: 1.5px solid; margin: .2rem 0 .4rem; animation: pbh-pop .45s var(--ease, ease); }
+.auto-reply[hidden] { display: none; }
+.auto-reply > strong { display: block; font-family: var(--font-head); font-size: 1.15rem; margin-bottom: .3rem; }
+.auto-reply p { margin: 0 0 .55rem; font-size: .95rem; }
+.auto-reply p:last-child { margin-bottom: 0; }
+.auto-confirmed { background: #e7f4ec; border-color: #7fbf9a; color: #14402c; }
+.auto-info { background: #eaf1fb; border-color: #9fbfe8; color: #17375e; }
+.auto-full { background: #fbeceb; border-color: #e3a49d; color: #6e1f17; }
+.pbh-check-full { background: var(--bad, #b3382c); box-shadow: 0 0 0 10px var(--bad-l, #f7dcd8); }
+.pbh-check-info { background: #2b6cb0; box-shadow: 0 0 0 10px #dbe8f8; }
+.msg-system { background: #f1f4f2 !important; border: 1px dashed #b9c8bf !important; align-self: stretch; max-width: 100% !important; }
+.msg-system .msg-meta strong { color: var(--leaf-d); }
+.check.consent { display: flex; gap: .65rem; align-items: flex-start; font-size: .88rem; color: var(--slate-2); line-height: 1.4; cursor: pointer; }
+.check.consent input { width: 1.15rem; height: 1.15rem; margin-top: .15rem; flex: none; accent-color: var(--leaf); }
+
+/* ---------- GCash status check ---------- */
+.gc-status { margin-top: 1.2rem; border-top: 1px solid var(--line, #d9e0db); padding-top: .9rem; }
+.gc-status > summary { cursor: pointer; font-weight: 650; color: #0b57c4; display: flex; align-items: center; gap: .5rem; list-style: none; }
+.gc-status > summary::-webkit-details-marker { display: none; }
+.gc-status > summary .ic { width: 1.05rem; height: 1.05rem; }
+.gc-status[open] > summary { margin-bottom: .4rem; }

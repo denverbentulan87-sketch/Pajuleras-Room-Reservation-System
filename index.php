@@ -56,6 +56,7 @@ public_header(setting('site_name', 'Pajuleras Boarding House'), 'home');
         <a class="btn btn-primary btn-lg" href="#services"><span>Browse available rooms</span><?= icon('arrow') ?></a>
         <a class="btn btn-outline btn-lg" href="<?= e(url('inquire.php')) ?>"><?= icon('message') ?><span>Send an inquiry</span></a>
       </div>
+      <p class="hero-gcash" data-reveal style="--d:280ms"><a href="<?= e(url('gcash_pay.php')) ?>" data-open-gcash><?= icon('wallet') ?><span>Already a tenant? <strong>Pay your rent by GCash</strong></span><?= icon('arrow') ?></a></p>
       <ul class="hero-points" data-reveal style="--d:320ms">
         <li><?= icon('shield') ?><span>No account needed</span></li>
         <li><?= icon('bed') ?><span>Live availability</span></li>
@@ -187,6 +188,43 @@ public_header(setting('site_name', 'Pajuleras Boarding House'), 'home');
         </li>
       <?php endforeach; ?>
     </ol>
+  </div>
+</section>
+
+<!-- ===================== PAY BY GCASH ===================== -->
+<?php $gcashNo = setting('gcash_no'); ?>
+<section id="pay" class="section section-pay" aria-labelledby="pay-title">
+  <div class="wrap pay-grid">
+    <div class="pay-copy" data-reveal="left">
+      <p class="kicker">Pay by GCash</p>
+      <h2 id="pay-title">Pay your rent from anywhere, in three steps</h2>
+      <p class="lead">No need to come in. Send your payment by GCash, report it here, and get an official receipt once the landlord confirms it.</p>
+      <ol class="pay-steps">
+        <li><b>1</b><div><strong>Send it by GCash</strong><span>Send the amount to the number shown here.</span></div></li>
+        <li><b>2</b><div><strong>Report your payment</strong><span>Type your reservation number and the GCash reference number.</span></div></li>
+        <li><b>3</b><div><strong>Get confirmed</strong><span>The landlord checks it, then you receive a message and an official receipt.</span></div></li>
+      </ol>
+    </div>
+    <div class="pay-card" data-reveal="right" style="--d:120ms">
+      <span class="pay-badge"><?= icon('wallet') ?> GCash</span>
+      <?php if ($gcashNo !== ''): ?>
+        <p class="pay-label">Send your payment to</p>
+        <p class="pay-number"><?= e($gcashNo) ?></p>
+        <?php if (setting('landlord_name') !== ''): ?><p class="pay-name"><?= e(setting('landlord_name')) ?></p><?php endif; ?>
+        <div class="pay-actions">
+          <button type="button" class="btn btn-sm gc-copy" data-copy="<?= e($gcashNo) ?>"><?= icon('copy') ?><span>Copy number</span></button>
+          <a class="btn btn-gcash btn-lg" href="<?= e(url('gcash_pay.php')) ?>" data-open-gcash><?= icon('wallet') ?><span>I paid. Report my payment</span></a>
+        </div>
+      <?php else: ?>
+        <p class="pay-label">The landlord will share the GCash number soon.</p>
+        <p class="pay-name">Please ask the landlord for it.</p>
+      <?php endif; ?>
+      <ul class="pay-trust">
+        <li><?= icon('shield') ?><span>Every report gets a code you can check any time</span></li>
+        <li><?= icon('check') ?><span>Nothing is recorded until the landlord confirms it</span></li>
+        <li><?= icon('bell') ?><span>You are reminded by e-mail or text before rent is due</span></li>
+      </ul>
+    </div>
   </div>
 </section>
 

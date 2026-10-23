@@ -260,3 +260,23 @@ body.receipt-page { background: #e7ece9; padding: 1.5rem; }
 
 .photo-current img { transition: transform .4s cubic-bezier(.22,1,.36,1), box-shadow .3s; max-width: 100%; height: auto; }
 .photo-current img:hover { transform: scale(1.06); box-shadow: 0 10px 24px -10px rgba(18,55,42,.5); }
+
+/* ---------- Payment reminders ---------- */
+.inline-form { display: inline-flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin: 0; }
+.chan-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .8rem; margin: .4rem 0 .8rem; }
+.chan { display: grid; gap: .15rem; padding: .8rem 1rem; border-radius: 12px; border: 1.5px solid var(--line, #d9e0db); background: #fff; }
+.chan strong { font-size: .98rem; }
+.chan span { font-size: .88rem; color: var(--slate-2, #4b5b52); }
+.chan-on { border-color: #7fbf9a; background: #eef8f2; }
+.chan-off { border-color: #e6c88e; background: #fdf6e8; }
+.chan-hand { background: #f3f6fb; border-color: #c5d4ea; }
+.manual-list { display: grid; gap: .8rem; }
+.manual-item { border: 1.5px solid var(--line, #d9e0db); border-radius: 14px; padding: .9rem 1rem; background: #fff; display: grid; gap: .55rem; }
+.manual-item details summary { cursor: pointer; font-weight: 600; color: var(--leaf, #1f5a43); }
+.msg-preview { white-space: pre-wrap; word-break: break-word; font: inherit; font-size: .92rem; background: #f6f8f6; border-radius: 10px; padding: .8rem; margin: .5rem 0 0; max-height: 18rem; overflow: auto; }
+.manual-actions { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+.manual-actions .btn .ic { width: 1rem; height: 1rem; margin-right: .3rem; }
+.sched .st-paid { color: var(--leaf, #1f5a43); font-weight: 650; }
+.sched .st-late { color: var(--bad, #b3382c); font-weight: 650; }
+.sched tr.is-next td { background: #fff9ea; }
+.sched-note { margin-top: .6rem; }

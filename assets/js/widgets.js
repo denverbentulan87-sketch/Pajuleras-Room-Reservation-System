@@ -149,7 +149,13 @@
       }).then(function (r) {
         return r.json().catch(function () { return { ok: false, errors: ['Something went wrong. Please try again.'] }; });
       }).then(function (data) {
-        if (data && data.ok && data.html !== undefined && form.getAttribute('data-ajax-form') === 'track') {
+        if (data && data.ok && form.getAttribute('data-ajax-form') === 'gcashstatus') {
+          var box = $('[data-status-result]', form);
+          $('[data-status-title]', box).textContent = data.title;
+          $('[data-status-text]', box).textContent = data.text;
+          box.className = 'auto-reply auto-' + ({ approved: 'confirmed', pending: 'info', rejected: 'full' }[data.status] || 'info');
+          box.hidden = false;
+        } else if (data && data.ok && data.html !== undefined && form.getAttribute('data-ajax-form') === 'track') {
           showThread(dlg, data.html);
           form.reset();
         } else if (data && data.ok) {
@@ -159,6 +165,21 @@
           if (code) { code.textContent = value || ''; }
           if (box) { box.hidden = !value; }
           if (amt) { amt.textContent = data.amount || ''; }
+          var auto = $('[data-auto]', dlg);
+          if (auto) {
+            if (data.auto) {
+              $('[data-auto-title]', auto).textContent = data.auto.title;
+              var at = $('[data-auto-text]', auto); at.textContent = '';
+              String(data.auto.text).split(/\n\n+/).forEach(function (para) {
+                var p = document.createElement('p');
+                para.split('\n').forEach(function (line, i) { if (i) { p.appendChild(document.createElement('br')); } p.appendChild(document.createTextNode(line)); });
+                at.appendChild(p);
+              });
+              auto.className = 'auto-reply auto-' + data.auto.result;
+              auto.hidden = false;
+              var ic = $('[data-auto-icon]', dlg); if (ic) { ic.className = 'pbh-check pbh-check-' + data.auto.result; }
+            } else { auto.hidden = true; }
+          }
           form.reset();
           $('[data-view="form"]', dlg).hidden = true;
           $('[data-view="done"]', dlg).hidden = false;

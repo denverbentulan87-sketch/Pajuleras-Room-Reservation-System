@@ -144,6 +144,33 @@ page_head($v['reservation_no'], $v['full_name'] . ', Room ' . $v['room_no'],
   <?php else: ?><p class="empty">No payments yet.</p><?php endif; ?>
 </section>
 
+<section class="panel">
+  <div class="panel-head"><h2>Payment schedule</h2></div>
+  <?php $sched = payment_schedule($v, $f); if ($sched): ?>
+  <div class="table-scroll"><table class="sched">
+    <thead><tr><th>What</th><th>Due date</th><th class="num">Amount</th><th class="num">Paid</th><th>Status</th></tr></thead>
+    <tbody>
+    <?php foreach ($sched as $i => $it):
+        $late = $it['when'] === 'past' && $it['state'] !== 'paid';
+        $isNext = $it['when'] === 'future' && $it['state'] !== 'paid' && !isset($shownNext) && ($shownNext = true); ?>
+      <tr<?= $isNext ? ' class="is-next"' : '' ?>>
+        <td><?= e($it['label']) ?></td>
+        <td><?= e(fmt_date($it['due'])) ?><?= $it['when'] === 'today' ? ' <span class="muted small">(today)</span>' : '' ?></td>
+        <td class="num"><?= e(money($it['amount'])) ?></td>
+        <td class="num"><?= e(money($it['paid'])) ?></td>
+        <td><?php if ($it['state'] === 'paid'): ?><span class="st-paid">Paid</span>
+            <?php elseif ($late): ?><span class="st-late"><?= $it['state'] === 'partial' ? 'Balance ' . e(money($it['amount'] - $it['paid'])) : 'Missing' ?>, <?= days_between($it['due'], today()) ?> <?= days_between($it['due'], today()) === 1 ? 'day' : 'days' ?> late</span>
+            <?php elseif ($it['when'] === 'today'): ?><strong>Due today</strong>
+            <?php elseif ($it['state'] === 'partial'): ?>Partly paid
+            <?php else: ?><span class="muted"><?= $isNext ? 'Next payment' : 'Upcoming' ?></span><?php endif; ?></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table></div>
+  <p class="hint sched-note">Rent is due one month after move-in, then every month on the same day. Money paid is applied to the oldest item first. Tenants are reminded automatically when a payment is coming up, missing, or only partly paid (see <a href="<?= e(url('admin/reminders.php')) ?>">Payment reminders</a>).</p>
+  <?php else: ?><p class="empty">No schedule for a cancelled reservation.</p><?php endif; ?>
+</section>
+
 <?php if ($history): ?>
 <section class="panel">
   <div class="panel-head"><h2>History</h2></div>

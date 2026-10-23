@@ -14,7 +14,7 @@ if ($tenant && $tenant['anonymized_at']) {
 $inquiryId = get_int('inquiry') ?: post_int('inquiry_id');
 $next = in_array(get_str('next') ?: post_str('next', 12), ['reservation'], true) ? 'reservation' : '';
 
-$OLD = $tenant ?: ['full_name' => '', 'gender' => '', 'birth_date' => '', 'contact_no' => '', 'email' => '', 'home_address' => '',
+$OLD = $tenant ?: ['full_name' => '', 'gender' => '', 'birth_date' => '', 'contact_no' => '', 'email' => '', 'messenger' => '', 'home_address' => '',
     'occupation' => 'student', 'school_or_workplace' => '', 'id_presented' => '', 'guardian_name' => '', 'guardian_contact' => '', 'notes' => '', 'status' => 'active'];
 
 // Pre-fill from a customer inquiry
@@ -32,7 +32,7 @@ if (is_post()) {
     csrf_verify();
     $OLD = [
         'full_name' => post_str('full_name', 120), 'gender' => post_str('gender', 10), 'birth_date' => post_str('birth_date', 10),
-        'contact_no' => post_str('contact_no', 30), 'email' => post_str('email', 150), 'home_address' => post_str('home_address', 255),
+        'contact_no' => post_str('contact_no', 30), 'email' => post_str('email', 150), 'messenger' => post_str('messenger', 120), 'home_address' => post_str('home_address', 255),
         'occupation' => post_str('occupation', 10), 'school_or_workplace' => post_str('school_or_workplace', 150),
         'id_presented' => post_str('id_presented', 100), 'guardian_name' => post_str('guardian_name', 120),
         'guardian_contact' => post_str('guardian_contact', 30), 'notes' => post_str('notes', 2000), 'status' => post_str('status', 10),
@@ -56,18 +56,18 @@ if (is_post()) {
     }
 
     if (!$errors) {
-        $vals = [$OLD['full_name'], $OLD['gender'], $OLD['birth_date'] ?: null, $phone, $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null,
+        $vals = [$OLD['full_name'], $OLD['gender'], $OLD['birth_date'] ?: null, $phone, $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null, $OLD['messenger'] ?: null,
                  $OLD['home_address'] ?: null, $OLD['occupation'], $OLD['school_or_workplace'] ?: null, $OLD['id_presented'] ?: null,
                  $OLD['guardian_name'] ?: null, $gphone ?: null, $OLD['notes'] ?: null, $OLD['status']];
         if ($tenant) {
-            q("UPDATE tenants SET full_name=?, gender=?, birth_date=?, contact_no=?, email=?, home_address=?, occupation=?, school_or_workplace=?, id_presented=?, guardian_name=?, guardian_contact=?, notes=?, status=? WHERE id=?",
+            q("UPDATE tenants SET full_name=?, gender=?, birth_date=?, contact_no=?, email=?, messenger=?, home_address=?, occupation=?, school_or_workplace=?, id_presented=?, guardian_name=?, guardian_contact=?, notes=?, status=? WHERE id=?",
               array_merge($vals, [$id]));
             log_activity('tenant_updated', 'tenant', $id, $OLD['full_name']);
             flash('success', 'Tenant record updated.');
             redirect('admin/tenant_view.php?id=' . $id);
         }
         $newId = in_transaction(function () use ($vals) {
-            q("INSERT INTO tenants (full_name, gender, birth_date, contact_no, email, home_address, occupation, school_or_workplace, id_presented, guardian_name, guardian_contact, notes, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", $vals);
+            q("INSERT INTO tenants (full_name, gender, birth_date, contact_no, email, messenger, home_address, occupation, school_or_workplace, id_presented, guardian_name, guardian_contact, notes, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $vals);
             $nid = (int)db()->lastInsertId();
             q("UPDATE tenants SET tenant_code = ? WHERE id = ?", ['T-' . str_pad((string)$nid, 4, '0', STR_PAD_LEFT), $nid]);
             return $nid;
@@ -105,6 +105,7 @@ page_head($tenant ? 'Edit ' . $tenant['full_name'] : 'Register tenant', 'Record 
     <label>Email <span class="opt">(optional)</span><input type="email" name="email" value="<?= e(old('email')) ?>" maxlength="150"></label>
     <label>Valid ID presented <span class="opt">(optional)</span><input type="text" name="id_presented" value="<?= e(old('id_presented')) ?>" maxlength="100" placeholder="e.g. School ID, Driver's license"></label>
   </div>
+  <label>Messenger name or link <span class="opt">(optional, for payment reminders)</span><input type="text" name="messenger" value="<?= e(old('messenger')) ?>" maxlength="120" placeholder="e.g. juan.delacruz or facebook.com/juan.delacruz"></label>
   <label>Home address <span class="opt">(optional)</span><input type="text" name="home_address" value="<?= e(old('home_address')) ?>" maxlength="255"></label>
   <div class="row-3">
     <label>Occupation
