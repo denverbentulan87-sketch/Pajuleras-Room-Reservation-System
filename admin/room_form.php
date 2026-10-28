@@ -147,7 +147,7 @@ page_head($room ? 'Edit Room ' . $room['room_no'] : 'Add room', 'Rates are per b
   </div>
   <div class="form-actions">
     <button class="btn btn-primary" type="submit">Save room</button>
-    <a class="btn" href="<?= e(url('admin/rooms.php')) ?>">Cancel</a>
+    <a class="btn" data-cancel href="<?= e(url('admin/rooms.php')) ?>">Cancel</a>
   </div>
 </form>
 <?php admin_footer();

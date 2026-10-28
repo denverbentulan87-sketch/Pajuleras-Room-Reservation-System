@@ -431,3 +431,4 @@
 @media (max-width: 900px) { .pay-grid { grid-template-columns: 1fr; } .pay-steps li:hover { transform: none; } }
 @media (max-width: 520px) { .pay-actions .btn { width: 100%; justify-content: center; } .hero-gcash a { font-size: .9rem; } }
 @media (prefers-reduced-motion: reduce) { .pay-card:hover, .pay-steps li:hover { transform: none; } }
+

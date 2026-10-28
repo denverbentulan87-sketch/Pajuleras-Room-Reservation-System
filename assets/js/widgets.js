@@ -248,6 +248,52 @@
     });
   }
 
+
+  /* GCash form: "Find what I owe" fills in the payment type and amount (fewer typing mistakes) */
+  $$('[data-gc-find]').forEach(function (box) { box.hidden = false; });
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-gc-lookup]');
+    if (!btn) { return; }
+    var form = btn.closest('form');
+    var res = $('input[name="reservation_no"]', form), tel = $('input[name="contact_no"]', form), csrf = $('input[name="_csrf"]', form);
+    var out = $('[data-gc-dues]', form);
+    var say = function (node) { out.textContent = ''; out.appendChild(node); out.hidden = false; };
+    var msg = function (text, cls) { var p = document.createElement('p'); p.className = cls || 'gc-note'; p.textContent = text; say(p); };
+    if (!res.value.trim() || !tel.value.trim()) { msg('Type your reservation number and contact number first.', 'gc-note gc-bad'); return; }
+    var fd = new FormData();
+    fd.append('_csrf', csrf.value); fd.append('action', 'lookup'); fd.append('reservation_no', res.value); fd.append('contact_no', tel.value);
+    btn.disabled = true; btn.classList.add('is-loading');
+    fetch(form.getAttribute('action') || window.location.href, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { msg((d.errors || ['Something went wrong.'])[0], 'gc-note gc-bad'); return; }
+        var wrap = document.createElement('div');
+        var s = document.createElement('p'); s.className = 'gc-note gc-ok'; s.textContent = d.summary; wrap.appendChild(s);
+        if (!d.items.length) {
+          var n = document.createElement('p'); n.className = 'gc-note'; n.textContent = 'Nothing is due right now. You can still type an amount below if you are paying ahead.'; wrap.appendChild(n);
+        }
+        d.items.forEach(function (it, i) {
+          var lab = document.createElement('label'); lab.className = 'gc-due';
+          var r = document.createElement('input'); r.type = 'radio'; r.name = 'gc_pick'; r.value = String(i);
+          r.addEventListener('change', function () {
+            var t = $('select[name="payment_type"]', form), a = $('input[name="amount"]', form);
+            if (t) { t.value = it.type; }
+            if (a) { a.value = it.amount.toFixed(2); }
+            var ref = $('input[name="gcash_ref"]', form); if (ref) { ref.focus(); }
+          });
+          var txt = document.createElement('span'); txt.className = 'gc-due-text';
+          var st = document.createElement('strong'); st.textContent = it.label + ': \u20b1' + it.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          txt.appendChild(st);
+          if (it.note) { var sm = document.createElement('small'); sm.textContent = it.note; txt.appendChild(sm); }
+          lab.appendChild(r); lab.appendChild(txt); wrap.appendChild(lab);
+        });
+        say(wrap);
+        var first = $('input[name="gc_pick"]', out); if (first) { first.checked = true; first.dispatchEvent(new Event('change')); }
+      })
+      .catch(function () { msg('We could not reach the server. Please check your connection and try again.', 'gc-note gc-bad'); })
+      .then(function () { btn.disabled = false; btn.classList.remove('is-loading'); });
+  });
+
   /* ======================= Chat assistant ======================= */
   var chat = $('[data-chat]');
   if (!chat) { return; }

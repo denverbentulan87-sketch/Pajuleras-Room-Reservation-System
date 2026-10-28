@@ -19,6 +19,11 @@ function gcash_pay_fields(string $p, array $old = []): string
     <input id="<?= $p ?>-tel" type="tel" name="contact_no" value="<?= $v('contact_no') ?>" maxlength="30" required inputmode="tel" placeholder="09123456789" autocomplete="tel">
   </label>
 </div>
+<div class="gc-find" data-gc-find hidden>
+  <button type="button" class="btn btn-sm" data-gc-lookup><?= icon('search') ?><span>Find what I owe</span></button>
+  <span class="hint">Fill in the two boxes above, then tap this. It shows your reservation and what is due, so you can pick it instead of typing the amount.</span>
+  <div class="gc-dues" data-gc-dues hidden></div>
+</div>
 <div class="row-2">
   <label for="<?= $p ?>-type">Payment for <span class="req">*</span>
     <select id="<?= $p ?>-type" name="payment_type" required>
@@ -66,7 +71,8 @@ function gcash_send_card(): string
 function render_inquiry_modal(): void
 {
     try {
-        $rooms = rooms_with_status(true);
+        // a light list only (no availability maths on every page view): the instant reply tells them if the room is open
+        $rooms = fetch_all("SELECT id, room_no, room_name FROM rooms WHERE is_public = 1 AND status = 'active' ORDER BY room_no + 0, room_no");
     } catch (Throwable $e) {
         $rooms = [];
     }
@@ -111,10 +117,11 @@ function render_inquiry_modal(): void
             </label>
             <label for="iq-school">School or workplace <span class="opt">(optional)</span><input id="iq-school" type="text" name="school" maxlength="150" autocomplete="organization"></label>
           </div>
+          <label for="iq-msgr">Messenger name <span class="opt">(optional, for payment messages)</span><input id="iq-msgr" type="text" name="messenger" maxlength="120" placeholder="e.g. juan.delacruz" autocomplete="off"></label>
           <div class="row-2">
             <label for="iq-room">Room you like
               <select id="iq-room" name="room_id"><option value="">Not sure yet</option>
-                <?php foreach ($rooms as $r): ?><option value="<?= (int)$r['id'] ?>"><?= e(room_title($r)) ?> (<?= e($r['status_label']) ?>)</option><?php endforeach; ?>
+                <?php foreach ($rooms as $r): ?><option value="<?= (int)$r['id'] ?>"><?= e(room_title($r)) ?></option><?php endforeach; ?>
               </select>
             </label>
             <label for="iq-date">Move-in date <span class="opt">(optional)</span><input id="iq-date" type="date" name="move_in" min="<?= e(today()) ?>"></label>

@@ -32,6 +32,7 @@ function chatbot_knowledge(): array
         'hours'    => setting('contact_hours'),
         'about'    => setting('about_text'),
         'advance'  => (int)setting('advance_months', '1'),
+        'life'     => lifecycle_settings(),
         'requirements' => lines(setting('requirements')),
         'payments' => lines(setting('payment_schedule')),
         'rules'    => lines(setting('house_rules')),
@@ -224,19 +225,20 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
         'help'     => $is(['help', 'menu', 'options', 'what can you do', 'unsa imong mahimo', 'topics']),
         'rooms'    => $is(['available', 'availability', 'vacant', 'vacancy', 'vacancies', 'rooms', 'room', 'beds', 'bed', 'bedspace', 'bed space', 'slot', 'slots', 'open', 'bakante', 'kwarto', 'kuwarto', 'naay', 'unsay room', 'list of rooms']),
         'rates'    => $is(['rate', 'rates', 'price', 'prices', 'rent', 'monthly', 'how much', 'cost', 'fee', 'fees', 'cheapest', 'affordable', 'budget', 'pila', 'presyo', 'bayranan', 'kuan', 'magkano']),
-        'deposit'  => $is(['deposit', 'advance', 'security deposit', 'downpayment', 'down payment', 'reservation fee', 'refund', 'refundable']),
+        'deposit'  => $is(['deposit', 'advance', 'security deposit', 'downpayment', 'down payment', 'how much is the deposit', 'how much deposit', 'deposit amount', 'how much is the advance', 'how much advance', 'advance payment']),
         'reqs'     => $is(['requirements', 'requirement', 'what to bring', 'need to bring', 'what do i need', 'documents', 'document', 'valid id', 'school id', 'kinahanglan', 'dad-on', 'dalhon', 'ihatag']),
         'rules'    => $is(['rules', 'rule', 'curfew', 'visitors', 'visitor', 'guest', 'guests', 'pets', 'pet', 'smoking', 'noise', 'allowed', 'not allowed', 'policy', 'policies', 'balaod', 'bisita', 'bisitahan', 'pwede', 'puwede', 'bawal', 'drinking', 'alcohol', 'overnight', 'sleepover']),
         'pay'      => $is(['pay', 'payment', 'payments', 'payment method', 'how to pay', 'bayad', 'magbayad', 'bayaran', 'receipt', 'receipts', 'cash', 'bank', 'bank transfer', 'schedule', 'due date', 'when to pay']),
         'gcash'    => $is(['gcash', 'g cash', 'online payment', 'pay online', 'remote', 'remotely', 'send money', 'e wallet', 'ewallet', 'pay from home']),
         'due'      => $is(['due date', 'due', 'when do i pay', 'when to pay', 'when should i pay', 'next payment', 'late', 'late payment', 'missed', 'missing payment', 'overdue', 'balance', 'reminder', 'reminders', 'notify', 'notification', 'notifications', 'every month', 'monthly due', 'kanus a', 'kanus-a', 'kanusa', 'kailan magbayad']),
         'safe'     => $is(['safe', 'secure', 'safety', 'legit', 'legitimate', 'scam', 'trust', 'trusted', 'trustworthy', 'privacy', 'personal information', 'my details', 'is it safe']),
+        'moveout'  => $is(['move out', 'moving out', 'move-out', 'check out', 'checkout', 'leave', 'leaving', 'notice', 'refund', 'deposit refund', 'return my deposit', 'get my deposit back', 'cancel', 'cancellation', 'cancel reservation', 'how long is the hold', 'hold the bed', 'hold my bed', 'forfeit', 'non refundable', 'nonrefundable', 'refundable', 'reservation fee', 'hold fee']),
         'where'    => $is(['where', 'location', 'address', 'located', 'directions', 'direction', 'map', 'how to get', 'asa', 'diin', 'nasaan', 'inabanga', 'bohol', 'poblacion', 'near']),
-        'contact'  => $is(['contact', 'phone', 'number', 'call', 'text', 'sms', 'email', 'facebook', 'fb', 'messenger', 'hours', 'open hours', 'what time', 'office hours', 'open now', 'reach', 'talk', 'tawag', 'kontak']),
+        'contact'  => $is(['contact', 'phone', 'number', 'call', 'text', 'email', 'facebook', 'fb', 'messenger', 'hours', 'open hours', 'what time', 'office hours', 'open now', 'reach', 'talk', 'tawag', 'kontak']),
         'landlord' => $is(['landlord', 'landlady', 'owner', 'admin', 'administrator', 'manager', 'who runs', 'who owns', 'in charge', 'boss', 'sir', 'maam', 'mrs', 'tag-iya', 'tag iya']),
         'inquiry'  => $is(['inquire', 'inquiry', 'inquiries', 'message', 'ask', 'reserve', 'reservation', 'book', 'booking', 'apply', 'visit', 'viewing', 'see the room', 'tour']),
         'track'    => $is(['track', 'status', 'reply', 'replied', 'my inquiry', 'check my inquiry', 'inquiry code', 'code']),
-        'movein'   => $is(['move in', 'move-in', 'moving in', 'check in', 'check-in', 'process', 'steps', 'how does it work', 'how to rent', 'how to book', 'how to reserve', 'unsaon', 'unsaon pag']),
+        'movein'   => $is(['move in', 'move-in', 'moving in', 'check in', 'check-in', 'process', 'steps', 'how does it work', 'how to rent', 'how to book', 'how to reserve', 'how do i reserve', 'how can i reserve', 'how do i book', 'reserve a room', 'reserve a bed', 'reservation process', 'how reserving works', 'how does reserving work', 'unsaon', 'unsaon pag']),
         'amen'     => $is(['wifi', 'wi fi', 'internet', 'aircon', 'air con', 'fan', 'electric', 'electricity', 'water', 'bathroom', 'cr', 'comfort room', 'toilet', 'kitchen', 'cook', 'cooking', 'laundry', 'parking', 'furnished', 'cabinet', 'amenities', 'amenity', 'included', 'includes', 'inclusion', 'aircon', 'kuryente', 'tubig']),
         'gender'   => $is(['male', 'female', 'boys', 'girls', 'men', 'women', 'co-ed', 'coed', 'mixed', 'lalaki', 'babae', 'gender']),
         'about'    => $is(['about', 'who are you', 'what is this', 'tell me about', 'describe', 'unsa ni']),
@@ -247,7 +249,7 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
     $best = (int)$scores[$top];
     // a few intents win ties in a sensible order
     if ($best > 0) {
-        foreach (['gcash', 'due', 'deposit', 'track', 'movein', 'amen', 'gender', 'rates', 'rooms'] as $pref) {
+        foreach (['gcash', 'due', 'moveout', 'deposit', 'track', 'movein', 'amen', 'gender', 'rates', 'rooms'] as $pref) {
             if ($scores[$pref] === $best && $pref !== $top && !in_array($top, ['greet', 'bye'], true)) {
                 $top = $pref;
                 break;
@@ -335,9 +337,16 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
 
         case 'due':
             $t = "**When rent is due:** one month after you move in, then every month on the same day. If you moved in on the 5th, your rent is due every 5th.";
-            $t .= "\n\n**Reminders:** you get a message by e-mail or text (or Messenger) a few days before the due date, on the due date, and again if a payment is missing or only partly paid. It is never sent twice for the same due date.";
+            $t .= "\n\n**Reminders:** you get a message by e-mail or Messenger a few days before the due date, on the due date, and again if a payment is missing or only partly paid. It is never sent twice for the same due date.";
             $t .= "\n\nIf you missed a payment, the unpaid amount stays on your account as a balance until it is paid." . ($kb['gcash'] !== '' ? ' You can pay by cash or GCash.' : '');
             return $out($t, [['type' => 'gcash', 'label' => 'Pay with GCash'], chat_act_link('Check my inquiry', 'track.php')], ['How to pay', 'Contact the landlord']);
+
+        case 'moveout':
+            $life = $kb['life'] ?? ['fee' => 0, 'hold_days' => 3, 'notice_days' => 30, 'fee_refundable' => false];
+            $t = "**Moving out:** please give **" . (int)$life['notice_days'] . " days' notice**. On your last day we check the room together. Your security deposit is returned after that, minus any unpaid rent or damages, and you get a written summary and receipt.";
+            $t .= "\n\n**Cancelling a reservation:** " . ($life['fee'] > 0 ? 'the reservation fee of ' . money($life['fee']) . ($life['fee_refundable'] ? ' is refundable.' : ' is not refundable, but it counts toward your first month if you do move in.') : 'payments are refunded according to what the landlord agrees with you.');
+            $t .= "\nA held bed is kept for " . (int)$life['hold_days'] . " days. If the reservation payment is not received by then, the hold ends and the bed is released.";
+            return $out($t, [chat_act_inquiry('Ask the landlord')], ['Requirements', 'How to pay', 'Contact the landlord']);
 
         case 'safe':
             return $out("**Your payments and details are protected:**\n• Every GCash report gets a code, and nothing is counted until the landlord checks it against the GCash history\n• You get an official receipt for every confirmed payment, and you can check a report's status any time\n• Rooms are only held when the landlord confirms your reservation, never by an automatic reply\n• Your details are kept only to answer your inquiry and manage your stay, and you can ask the landlord to erase them\n• Passwords and payment records are never shown to other people", [['type' => 'gcash', 'label' => 'Pay with GCash']], ['How to pay', 'Requirements', 'Contact the landlord']);
@@ -363,7 +372,9 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
 
         case 'inquiry':
         case 'movein':
-            $t = "**How to rent a room:**\n1. Send an inquiry (name, contact number, the room you like)\n2. The landlord replies and confirms availability\n3. Prepare the requirements\n4. Pay the advance to secure your bed" . ($kb['gcash'] !== '' ? ' (cash or GCash)' : '') . "\n5. Move in on your agreed date";
+            $life = $kb['life'] ?? ['fee' => 0, 'hold_days' => 3, 'notice_days' => 30, 'fee_refundable' => false];
+            $t = "**How reserving works:**\n1. Send an inquiry. You get an instant answer: confirmed if the room has an open bed, or not confirmed with other rooms that do\n2. The landlord holds your bed for **" . (int)$life['hold_days'] . " days** while you pay the reservation " . ($life['fee'] > 0 ? 'fee of **' . money($life['fee']) . '**' : 'amount')
+               . "\n3. Pay by cash" . ($kb['gcash'] !== '' ? ' or GCash' : '') . ". Paying confirms your reservation. If it is not paid in time, the bed is released\n4. Move in: pay the deposit and the rest of the first month, then we check the room together\n5. Pay rent every month on your move-in date. We remind you by e-mail or Messenger\n6. Move out with " . (int)$life['notice_days'] . " days' notice. The deposit comes back minus unpaid rent or damages";
             return $out($t, [chat_act_inquiry('Send an inquiry'), chat_act_link('Check my inquiry', 'track.php')], ['Requirements', 'How to pay', 'Rates']);
 
         case 'amen':

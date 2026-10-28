@@ -39,6 +39,10 @@ if (is_post()) {
     if (in_array($OLD['method'], ['gcash', 'bank_transfer'], true) && $OLD['reference_no'] === '') $errors[] = 'Enter the reference number for GCash or bank transfer payments.';
     if ($current && $current['status'] === 'cancelled' && $OLD['payment_type'] !== 'refund') $errors[] = 'This reservation is cancelled. Only refunds can be recorded.';
 
+    if (!$errors && !consume_form_token(post_str('form_token', 40))) {
+        // a double click, a refresh, or a form that was left open for a long time
+        $errors[] = 'This form was already used or has expired, so nothing was saved again. Check the payments list to see whether the payment is there before recording it again.';
+    }
     if (!$errors) {
         try {
             $pid = in_transaction(function () use ($OLD, $amount, $resId) {
@@ -59,6 +63,11 @@ if (is_post()) {
                 return $nid;
             });
             flash('success', 'Payment recorded. Receipt is ready to print.');
+            if ($OLD['payment_type'] !== 'refund') {
+                // paying the reservation amount holds and confirms the bed, with no extra clicking
+                $secured = secure_reservation_after_payment($resId);
+                if ($secured['message'] !== '') flash($secured['changed'] ? 'success' : 'warn', $secured['message']);
+            }
             redirect('admin/receipt.php?id=' . $pid);
         } catch (RuleException $ex) {
             $errors[] = $ex->getMessage();
@@ -70,7 +79,7 @@ admin_header('Record payment', 'payments');
 page_head('Record payment', 'An official receipt number is created automatically.');
 ?>
 <form class="panel form" method="post" novalidate>
-  <?= csrf_field() ?>
+  <?= csrf_field() ?><?= form_token_field() ?>
   <?php render_errors($errors); ?>
   <?php if ($resId && $current): ?>
     <input type="hidden" name="reservation_id" value="<?= $resId ?>">
@@ -118,7 +127,7 @@ page_head('Record payment', 'An official receipt number is created automatically
   <p class="hint">Use <strong>Refund</strong> when you return money, such as a deposit at check-out. Refunds do not create a balance.</p>
   <div class="form-actions">
     <button class="btn btn-primary" type="submit">Save payment</button>
-    <a class="btn" href="<?= e(url('admin/reservation_view.php?id=' . $resId)) ?>">Cancel</a>
+    <a class="btn" data-cancel href="<?= e(url('admin/reservation_view.php?id=' . $resId)) ?>">Cancel</a>
   </div>
   <?php endif; ?>
 </form>

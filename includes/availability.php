@@ -30,7 +30,8 @@ function room_holds(int $roomId, ?int $excludeReservationId = null): array
 {
     $sql = "SELECT id, beds, move_in_date, move_out_date, status, checked_in_at
               FROM reservations
-             WHERE room_id = ? AND status IN ('confirmed','checked_in')";
+             WHERE room_id = ? AND status IN ('confirmed','checked_in')
+               AND NOT (status = 'confirmed' AND hold_until IS NOT NULL AND hold_until < NOW())";
     $p = [$roomId];
     if ($excludeReservationId) {
         $sql .= " AND id <> ?";
@@ -114,7 +115,7 @@ function rooms_with_status(bool $publicOnly = false, ?int $onlyId = null): array
 {
     $sql = "SELECT r.*,
                    COALESCE(SUM(CASE WHEN v.status = 'checked_in' THEN v.beds END), 0) AS occupied_beds,
-                   COALESCE(SUM(CASE WHEN v.status = 'confirmed'  THEN v.beds END), 0) AS reserved_beds,
+                   COALESCE(SUM(CASE WHEN v.status = 'confirmed' AND (v.hold_until IS NULL OR v.hold_until >= NOW()) THEN v.beds END), 0) AS reserved_beds,
                    COALESCE(SUM(CASE WHEN v.status = 'pending'    THEN 1 END), 0)      AS pending_count
               FROM rooms r
               LEFT JOIN reservations v ON v.room_id = r.id AND v.status IN ('pending','confirmed','checked_in')";

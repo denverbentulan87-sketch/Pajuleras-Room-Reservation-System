@@ -34,30 +34,24 @@ return [
     'max_inquiries_per_hour' => 5, // new inquiries per visitor IP per hour
     'max_track_failures'  => 8,    // wrong tracking look-ups per IP per 15 min
 
-    // Public web address of the site, used for links inside e-mails and SMS
+    // Public web address of the site, used for links inside e-mails
     // (for example 'https://pajuleras.example.com'). Leave empty to detect it
     // automatically from the visitor's address.
     'public_url' => '',
 
     // ---- Payment reminders and notifications -------------------------------
-    // Reminders always work: when e-mail/SMS is not set up below, the system
-    // prepares each message in Admin > Reminders so you can send it with one tap.
-    // Fill these in to have them sent automatically.
+    // Reminders always work: when e-mail is not set up below, the system prepares
+    // each message in Admin > Payment reminders so you can send it with one tap
+    // (Messenger, e-mail or a call). Fill this in to have e-mails sent automatically.
     'mail' => [
-        'host'       => '',          // e.g. 'smtp.gmail.com'
+        'host'       => 'smtp.gmail.com',          // e.g. 'smtp.gmail.com'
         'port'       => 587,         // 587 with 'tls', 465 with 'ssl'
         'secure'     => 'tls',       // 'tls' (STARTTLS), 'ssl' or '' (none)
-        'user'       => '',          // your full e-mail address
-        'pass'       => '',          // for Gmail use an App Password, never your normal password
-        'from_email' => '',          // defaults to 'user'
-        'from_name'  => '',          // defaults to the boarding house name
+        'user'       => 'pajulerasbh@gmail.com',          // your full e-mail address
+        'pass'       => 'etzknmxomwdtjtay',          // for Gmail use an App Password, never your normal password
+        'from_email' => 'pajulerasbh@gmail.com',          // defaults to 'user'
+        'from_name'  => 'PajulerasBH',          // defaults to the boarding house name
         'verify_tls' => true,
-    ],
-    'sms' => [
-        'provider' => 'semaphore',   // Semaphore (semaphore.co), a Philippine SMS service
-        'api_key'  => '',
-        'sender'   => '',            // optional approved sender name
-        'endpoint' => 'https://api.semaphore.co/api/v4/messages',
     ],
 
     // Room photo uploads

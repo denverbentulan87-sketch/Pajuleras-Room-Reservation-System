@@ -148,3 +148,50 @@ function gcash_status_lookup(string $code, string $contact): array
     return ['ok' => true, 'status' => 'pending', 'title' => 'Waiting for the landlord to check it',
             'text' => 'Your report of ' . $sent . ' was received on ' . fmt_datetime($row['created_at']) . '. It is not counted yet. You will get a message when it is confirmed.'];
 }
+
+
+/**
+ * Tenant types a reservation number and contact number; we show what they owe so they pick it instead of typing
+ * amounts (fewer mistakes, fewer rejected reports). Same checks and the same rate limit as sending a report.
+ * @return array{ok:bool, errors?:string[], summary?:string, items?:array}
+ */
+function gcash_lookup(string $resNo, string $contact): array
+{
+    if (throttle_count('gcash_fail', 15) >= 8) {
+        return ['ok' => false, 'errors' => ['Too many unsuccessful tries. Please wait 15 minutes, or contact the landlord directly.']];
+    }
+    $resNo = strtoupper(trim($resNo));
+    $phone = normalize_phone($contact);
+    $res = ($resNo !== '' && valid_phone($phone)) ? fetch_one("SELECT v.*, t.full_name, t.contact_no AS t_contact, r.room_no FROM reservations v
+                JOIN tenants t ON t.id = v.tenant_id JOIN rooms r ON r.id = v.room_id
+               WHERE v.reservation_no = ? AND v.status IN ('pending','confirmed','checked_in')", [$resNo]) : null;
+    if (!$res || normalize_phone((string)$res['t_contact']) !== $phone) {
+        throttle_hit('gcash_fail');
+        return ['ok' => false, 'errors' => ['We could not find an open reservation with that number and contact number. Please check them and try again.']];
+    }
+    $fin = reservation_financials($res);
+    $items = [];
+    $pendingReport = (float)fetch_val("SELECT COALESCE(SUM(amount),0) FROM payment_submissions WHERE reservation_id = ? AND status = 'pending'", [$res['id']]);
+    if ($fin['advance_needed'] > 0) {
+        $items[] = ['type' => 'advance', 'label' => $res['status'] === 'checked_in' ? 'Advance payment' : 'Reservation amount (holds your bed)', 'amount' => (float)$fin['advance_needed'],
+                    'note' => ($res['status'] === 'confirmed' && $res['hold_until']) ? 'Pay by ' . fmt_datetime($res['hold_until']) . ' or the hold ends' : ''];
+    }
+    foreach (payment_schedule($res, $fin) as $it) {
+        if ($it['state'] === 'paid' || $it['when'] === 'future' && $res['status'] !== 'checked_in') {
+            continue;
+        }
+        $left = round($it['amount'] - $it['paid'], 2);
+        if ($left <= 0) {
+            continue;
+        }
+        $when = $it['when'] === 'past' ? 'was due ' . fmt_date($it['due']) . ' (late)' : ($it['when'] === 'today' ? 'due today' : 'due ' . fmt_date($it['due']));
+        $items[] = ['type' => $it['kind'] === 'deposit' ? 'deposit' : 'rent', 'label' => $it['label'], 'amount' => $left, 'note' => $when];
+        if (count($items) >= 4) {
+            break;
+        }
+    }
+    $summary = $res['full_name'] . ', Room ' . $res['room_no'] . ' (' . $res['reservation_no'] . ')'
+        . ($fin['balance'] > 0 ? '. Total unpaid: ' . money($fin['balance']) : '. Nothing is overdue.')
+        . ($pendingReport > 0 ? '. You already sent a report of ' . money($pendingReport) . ' that is waiting to be checked.' : '');
+    return ['ok' => true, 'summary' => $summary, 'items' => $items, 'pending_report' => $pendingReport];
+}

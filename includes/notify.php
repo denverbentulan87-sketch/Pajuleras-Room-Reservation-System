@@ -4,13 +4,12 @@ declare(strict_types=1);
 /**
  * Messages to tenants (rent reminders, GCash decisions, inquiry replies).
  *
- * Channels, in this order:
- *   1. E-mail  - sent through your SMTP account (config/config.php > 'mail')
- *   2. SMS     - sent through Semaphore             (config/config.php > 'sms')
- *   3. By hand - when a channel is not set up (or fails), the message is prepared
- *                in Admin > Reminders with one-tap Messenger / SMS / e-mail buttons.
- *                Messenger cannot be sent automatically without a Facebook app
- *                approval, so it is always the one-tap kind.
+ * Channels:
+ *   1. E-mail    - sent automatically through your SMTP account (config/config.php > 'mail')
+ *   2. Messenger - prepared in Admin > Payment reminders with a one-tap button. Facebook
+ *                  does not allow automatic Messenger messages without an approved app.
+ *   When e-mail is not set up (or fails), or the tenant has no e-mail, the message is
+ *   prepared there for one-tap Messenger, e-mail, or a call.
  * Every attempt is written to the `notifications` table, so the landlord can
  * always see what was sent, to whom, and whether it worked.
  */
@@ -35,12 +34,6 @@ function mail_config(): array
     return $c + ['host' => '', 'port' => 587, 'secure' => 'tls', 'user' => '', 'pass' => '', 'from_email' => '', 'from_name' => '', 'verify_tls' => true];
 }
 
-function sms_config(): array
-{
-    $c = (array)cfg('sms', []);
-    return $c + ['provider' => 'semaphore', 'api_key' => '', 'sender' => '', 'endpoint' => 'https://api.semaphore.co/api/v4/messages'];
-}
-
 function mail_configured(): bool
 {
     $c = mail_config();
@@ -48,15 +41,10 @@ function mail_configured(): bool
     return $c['host'] !== '' && valid_email((string)$from);
 }
 
-function sms_configured(): bool
-{
-    return trim((string)sms_config()['api_key']) !== '';
-}
-
-/** @return array{email:bool, sms:bool, messenger:bool} what can be sent automatically */
+/** @return array{email:bool, messenger:bool} what can be sent automatically */
 function notify_channels(): array
 {
-    return ['email' => mail_configured(), 'sms' => sms_configured(), 'messenger' => false];
+    return ['email' => mail_configured(), 'messenger' => false];
 }
 
 /* ---------------------------------------------------------------- SMTP */
@@ -178,75 +166,6 @@ function smtp_send(string $to, string $subject, string $body, ?string &$error = 
     }
 }
 
-/* ----------------------------------------------------------------- SMS */
-
-function http_post_form(string $url, array $fields, ?int &$status = null, ?string &$err = null): ?string
-{
-    $body = http_build_query($fields);
-    if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 8,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded', 'Accept: application/json']]);
-        $res = curl_exec($ch);
-        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        if ($res === false) {
-            $err = curl_error($ch);
-        }
-        curl_close($ch);
-        return $res === false ? null : (string)$res;
-    }
-    $ctx = stream_context_create(['http' => ['method' => 'POST', 'timeout' => 15, 'ignore_errors' => true,
-        'header' => "Content-Type: application/x-www-form-urlencoded\r\nAccept: application/json\r\n", 'content' => $body]]);
-    $res = @file_get_contents($url, false, $ctx);
-    $status = 0;
-    foreach (($http_response_header ?? []) as $h) {
-        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
-            $status = (int)$m[1];
-        }
-    }
-    if ($res === false) {
-        $err = 'Could not reach the SMS service.';
-        return null;
-    }
-    return $res;
-}
-
-function sms_send(string $number, string $text, ?string &$error = null): bool
-{
-    if (!sms_configured()) {
-        $error = 'SMS is not set up.';
-        return false;
-    }
-    $number = normalize_phone($number);
-    if (!valid_phone($number)) {
-        $error = 'The mobile number is not valid.';
-        return false;
-    }
-    $c = sms_config();
-    $fields = ['apikey' => (string)$c['api_key'], 'number' => $number, 'message' => $text];
-    if ((string)$c['sender'] !== '') {
-        $fields['sendername'] = (string)$c['sender'];
-    }
-    $status = 0;
-    $err = null;
-    $res = http_post_form((string)$c['endpoint'], $fields, $status, $err);
-    if ($res === null) {
-        $error = 'Could not reach the SMS service' . ($err ? ' (' . $err . ')' : '') . '.';
-        return false;
-    }
-    $data = json_decode($res, true);
-    if ($status < 200 || $status >= 300) {
-        $msg = is_array($data) ? (is_string($data[0] ?? null) ? $data[0] : json_encode($data)) : $res;
-        $error = 'The SMS service refused it (' . $status . '): ' . mb_substr((string)$msg, 0, 140);
-        return false;
-    }
-    if (is_array($data) && isset($data[0]['status']) && in_array(strtolower((string)$data[0]['status']), ['failed', 'refunded'], true)) {
-        $error = 'The SMS service reported: ' . $data[0]['status'];
-        return false;
-    }
-    return true;
-}
-
 /* ------------------------------------------------------------- Sending */
 
 function notification_log(array $row): int
@@ -262,9 +181,9 @@ function notification_log(array $row): int
 /**
  * Send one message to a tenant on the first channel that works.
  *
- * $msg  = ['subject' => ..., 'body' => ..., 'sms' => short text]
+ * $msg  = ['subject' => ..., 'body' => ...]
  * $opts = ['reservation_id' => int, 'inquiry_id' => int, 'dedupe' => string, 'force' => bool,
- *          'sms' => bool (allow SMS, default true), 'email' => string (override), 'phone' => string (override)]
+ *          'auto_only' => bool (never prepare a by-hand message), 'email' => string (override), 'phone' => string (override)]
  * @return array{status:string, channel:string, note:string}  status: sent | manual | skipped | failed
  */
 function notify_tenant(?array $tenant, string $type, array $msg, array $opts = []): array
@@ -295,23 +214,15 @@ function notify_tenant(?array $tenant, string $type, array $msg, array $opts = [
         notification_log($base + ['channel' => 'email', 'recipient' => $email, 'body' => $msg['body'], 'status' => 'failed', 'error' => $err]);
         $failedNote = 'E-mail failed. ';
     }
-    if (($opts['sms'] ?? true) && valid_phone($phone) && sms_configured()) {
-        $err = null;
-        $text = (string)($msg['sms'] ?? $msg['body']);
-        if (sms_send($phone, $text, $err)) {
-            notification_log($base + ['channel' => 'sms', 'recipient' => $phone, 'body' => $text, 'status' => 'sent']);
-            return ['status' => 'sent', 'channel' => 'sms', 'note' => $failedNote . 'Text message sent to ' . $phone];
-        }
-        notification_log($base + ['channel' => 'sms', 'recipient' => $phone, 'body' => $text, 'status' => 'failed', 'error' => $err]);
-        $failedNote .= 'SMS failed. ';
-    }
-
     // Nothing could be sent automatically: prepare it for one-tap sending.
     // (Skipped for message types that are only worth sending automatically.)
     if (!empty($opts['auto_only'])) {
         return ['status' => 'skipped', 'channel' => '', 'note' => $failedNote . 'No automatic channel available.'];
     }
-    notification_log($base + ['channel' => 'manual', 'recipient' => $phone !== '' ? $phone : ($email ?: null), 'body' => $msg['body'], 'status' => 'manual', 'error' => $failedNote !== '' ? trim($failedNote) : null]);
+    if ($dedupe !== '' && fetch_val("SELECT 1 FROM notifications WHERE dedupe_key = ? AND status = 'manual' LIMIT 1", [$dedupe])) {
+        return ['status' => 'manual', 'channel' => 'manual', 'note' => 'Already prepared in Admin > Payment reminders, waiting to be sent.'];   // never queue the same message twice
+    }
+    notification_log($base + ['channel' => 'manual', 'recipient' => $email !== '' ? $email : ($phone !== '' ? $phone : null), 'body' => $msg['body'], 'status' => 'manual', 'error' => $failedNote !== '' ? trim($failedNote) : null]);
     return ['status' => 'manual', 'channel' => 'manual', 'note' => 'Ready to send by hand in Admin > Reminders.'];
 }
 
@@ -322,7 +233,7 @@ function manual_links(array $n, ?array $tenant): array
     $body = (string)$n['body'];
     $phone = normalize_phone((string)($tenant['contact_no'] ?? $n['recipient'] ?? ''));
     if (valid_phone($phone)) {
-        $links[] = ['label' => 'Text message', 'href' => 'sms:' . $phone . '?&body=' . rawurlencode($body), 'icon' => 'phone'];
+        $links[] = ['label' => 'Call ' . $phone, 'href' => 'tel:' . $phone, 'icon' => 'phone'];
     }
     $mail = (string)($tenant['email'] ?? '');
     if ($mail !== '' && valid_email($mail)) {

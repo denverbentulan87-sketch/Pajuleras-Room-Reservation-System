@@ -54,8 +54,19 @@ if (is_post()) {
         $tab = 'policies';
         $adv = post_str('advance_months', 2);
         if (!ctype_digit($adv) || (int)$adv > 12) $errors[] = 'Advance months must be a whole number from 0 to 12.';
+        $feeRaw = post_str('reservation_fee', 15);
+        $fee = $feeRaw === '' ? 0.0 : parse_money($feeRaw);
+        if ($fee === null || $fee < 0 || $fee > 100000) $errors[] = 'The reservation fee must be an amount such as 500 (or empty for none).';
+        $holdDays = post_str('hold_days', 2);
+        if (!ctype_digit($holdDays) || (int)$holdDays < 1 || (int)$holdDays > 30) $errors[] = 'Hold the bed for a whole number of days from 1 to 30.';
+        $noticeDays = post_str('notice_days', 2);
+        if (!ctype_digit($noticeDays) || (int)$noticeDays > 90) $errors[] = 'Move-out notice must be a whole number of days from 0 to 90.';
         if (!$errors) {
             save_setting('advance_months', (string)(int)$adv);
+            save_setting('reservation_fee', $fee > 0 ? number_format($fee, 2, '.', '') : '0');
+            save_setting('hold_days', (string)(int)$holdDays);
+            save_setting('notice_days', (string)(int)$noticeDays);
+            save_setting('reservation_fee_refundable', isset($_POST['reservation_fee_refundable']) ? '1' : '0');
             foreach (['requirements', 'payment_schedule', 'house_rules'] as $k) save_setting($k, post_str($k, 3000));
             log_activity('settings_updated', 'settings', null, 'Policies updated');
             flash('success', 'Policies saved. They are now shown on the public website.');
@@ -90,14 +101,6 @@ if (is_post()) {
                 flash('success', 'Test e-mail sent to ' . $to . '. Check the inbox (and the spam folder).');
                 redirect('admin/settings.php?tab=notify');
             } else $errors[] = 'The test e-mail failed. ' . $err;
-        } elseif ($kind === 'sms') {
-            $err = null;
-            if (!sms_configured()) $errors[] = 'SMS is not set up yet. See the steps below.';
-            elseif (!valid_phone(normalize_phone($to))) $errors[] = 'Type the mobile number to send the test to (for example 09123456789).';
-            elseif (sms_send($to, setting('site_name', 'Boarding house') . ': test message. Tenants will get payment reminders by SMS.', $err)) {
-                flash('success', 'Test text message sent to ' . normalize_phone($to) . '.');
-                redirect('admin/settings.php?tab=notify');
-            } else $errors[] = 'The test text message failed. ' . $err;
         }
     } elseif ($form === 'account') {
         $tab = 'account';
@@ -204,6 +207,16 @@ $must = (int)$admin['must_change_password'] === 1;
       <input type="number" name="advance_months" value="<?= e($OLD['advance_months'] ?? '1') ?>" min="0" max="12">
       <span class="hint">Used as the default advance when you create a reservation. You can still change it per reservation.</span>
     </label>
+    <fieldset class="rules-box">
+      <legend>How reserving works</legend>
+      <p class="hint">Most boarding houses hold a bed for a few days while a small reservation fee is paid, then collect the deposit and the rest of the first month at move-in. These settings drive the whole process: the hold, the deadline, the automatic release, and the move-out notice.</p>
+      <div class="row-3">
+        <label>Reservation fee (&#8369;)<input type="text" name="reservation_fee" inputmode="decimal" value="<?= e((string)(lifecycle_settings()['fee'] > 0 ? lifecycle_settings()['fee'] : '')) ?>" placeholder="empty = the full advance"><span class="hint">Counts toward the first month. Empty means the tenant pays the whole advance to hold the bed.</span></label>
+        <label>Hold the bed for (days)<input type="number" name="hold_days" min="1" max="30" value="<?= (int)lifecycle_settings()['hold_days'] ?>" required><span class="hint">If the fee is not paid by then, the bed is released automatically.</span></label>
+        <label>Move-out notice (days)<input type="number" name="notice_days" min="0" max="90" value="<?= (int)lifecycle_settings()['notice_days'] ?>" required><span class="hint">The notice tenants should give before leaving.</span></label>
+      </div>
+      <label class="check"><input type="checkbox" name="reservation_fee_refundable" value="1"<?= lifecycle_settings()['fee_refundable'] ? ' checked' : '' ?>> <span>The reservation fee is refundable if a reservation is cancelled <span class="hint">(unticked: it is kept by default, and you can still change the amount for each cancellation)</span></span></label>
+    </fieldset>
     <label>Requirements for new tenants <span class="opt">(one per line)</span><textarea name="requirements" rows="5" maxlength="3000"><?= e($OLD['requirements'] ?? '') ?></textarea></label>
     <label>Payment schedule and terms <span class="opt">(one per line)</span><textarea name="payment_schedule" rows="5" maxlength="3000"><?= e($OLD['payment_schedule'] ?? '') ?></textarea></label>
     <label>House rules <span class="opt">(one per line)</span><textarea name="house_rules" rows="7" maxlength="3000"><?= e($OLD['house_rules'] ?? '') ?></textarea></label>
@@ -226,21 +239,19 @@ $must = (int)$admin['must_change_password'] === 1;
   <h3 class="form-sub">How messages are sent</h3>
   <div class="chan-row">
     <div class="chan <?= $ch['email'] ? 'chan-on' : 'chan-off' ?>"><strong>E-mail</strong><span><?= $ch['email'] ? 'Set up' : 'Not set up' ?></span></div>
-    <div class="chan <?= $ch['sms'] ? 'chan-on' : 'chan-off' ?>"><strong>Text message (SMS)</strong><span><?= $ch['sms'] ? 'Set up' : 'Not set up' ?></span></div>
     <div class="chan chan-hand"><strong>Messenger</strong><span>One tap from Admin &gt; Payment reminders</span></div>
   </div>
   <form class="form test-form" method="post" novalidate>
     <?= csrf_field() ?><input type="hidden" name="form" value="notifytest">
     <div class="row-2">
-      <label>Send a test to<input type="text" name="to" placeholder="your e-mail or mobile number" maxlength="150"></label>
-      <div class="form-actions"><button class="btn" type="submit" name="kind" value="email"<?= $ch['email'] ? '' : ' disabled' ?>>Test e-mail</button> <button class="btn" type="submit" name="kind" value="sms"<?= $ch['sms'] ? '' : ' disabled' ?>>Test text message</button></div>
+      <label>Send a test to<input type="text" name="to" placeholder="your e-mail address" maxlength="150"></label>
+      <div class="form-actions"><button class="btn" type="submit" name="kind" value="email"<?= $ch['email'] ? '' : ' disabled' ?>>Test e-mail</button></div>
     </div>
   </form>
-  <details class="howto"><summary>How to set up e-mail and text messages</summary>
-    <p>For safety, the passwords and keys are kept in the file <code>config/config.php</code> (not in the database). Open it with Notepad, fill in the details below, save, then press the test buttons above.</p>
+  <details class="howto"><summary>How to set up e-mail and Messenger</summary>
+    <p>For safety, the passwords and keys are kept in the file <code>config/config.php</code> (not in the database). Open it with Notepad, fill in the details below, save, then press the test button above.</p>
     <ol>
       <li><strong>E-mail (free):</strong> use a Gmail account. Turn on 2-step verification, create an <em>App password</em> (Google Account &gt; Security), then in <code>'mail'</code> set <code>host</code> = <code>smtp.gmail.com</code>, <code>port</code> = <code>587</code>, <code>secure</code> = <code>tls</code>, <code>user</code> = your Gmail address and <code>pass</code> = the app password.</li>
-      <li><strong>Text messages (paid per message):</strong> create an account at <em>semaphore.co</em> (a Philippine SMS service) and copy your API key into <code>'sms'</code> &rarr; <code>api_key</code>. Optionally set an approved <code>sender</code> name.</li>
       <li><strong>Messenger:</strong> save each tenant's Messenger username on their tenant record. Facebook does not allow automatic messages without an approved app, so you send it with one tap from <em>Payment reminders</em>.</li>
     </ol>
     <p><strong>Make it run every day, even when nobody opens the website:</strong></p>

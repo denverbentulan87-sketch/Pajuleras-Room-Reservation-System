@@ -72,10 +72,11 @@ function reminder_state(array $res, array $fin, array $cfg): ?array
     $out = ['state' => 'ok', 'due' => null, 'days' => 0, 'amount' => 0.0, 'paid_on_item' => 0.0, 'label' => ''];
 
     if (in_array($res['status'], ['pending', 'confirmed'], true)) {
-        if ($fin['advance_needed'] > 0) {
+        // a pending reservation holds no bed yet, so there is nothing to chase: the landlord confirms it first
+        if ($res['status'] === 'confirmed' && $fin['advance_needed'] > 0) {
             $ref = substr((string)($res['confirmed_at'] ?: $res['created_at']), 0, 10);
             return ['state' => 'advance', 'due' => $res['move_in_date'], 'days' => max(0, days_between($ref, $today)), 'amount' => (float)$fin['advance_needed'],
-                    'paid_on_item' => (float)$fin['paid'], 'label' => 'Advance payment', 'ref' => $ref];
+                    'paid_on_item' => (float)$fin['paid'], 'label' => 'Advance payment', 'ref' => $ref, 'hold' => $res['hold_until'] ?? null];
         }
         return null;
     }
@@ -117,6 +118,11 @@ function reminder_key(array $res, array $st, array $cfg): ?string
         case 'upcoming':
             return "res{$id}:pre:{$st['due']}";
         case 'advance':
+            if (!empty($st['hold'])) {
+                // a held bed: one warning in the last 24 hours before the hold ends
+                $left = strtotime((string)$st['hold']) - time();
+                return ($left > 0 && $left <= 86400) ? "res{$id}:hold:" . substr((string)$st['hold'], 0, 10) : null;
+            }
             if ($st['days'] < 1) {
                 return null;
             }
@@ -176,7 +182,7 @@ function how_to_pay_text(array $res): string
     return implode("\n", $lines);
 }
 
-/** @return array{subject:string, body:string, sms:string} */
+/** @return array{subject:string, body:string} */
 function reminder_message(array $c): array
 {
     $res = $c['res'];
@@ -188,7 +194,6 @@ function reminder_message(array $c): array
     $room = 'Room ' . $res['room_no'];
     $ref = $res['reservation_no'];
     $g = setting('gcash_no');
-    $short = ($g !== '' ? 'Pay cash or GCash ' . $g . '.' : 'Pay cash to the landlord.') . ' Ref ' . $ref;
     $sign = "\nThank you,\n" . (setting('landlord_name') ?: $site) . "\n" . $site . (setting('phone') !== '' ? "\n" . setting('phone') : '');
     $ignore = "\n\nIf you already paid, thank you. Please ignore this message or tell us so we can update your record.";
     $how = "\n\n" . how_to_pay_text($res);
@@ -199,31 +204,28 @@ function reminder_message(array $c): array
             return [
                 'subject' => "Rent reminder: $amt due on $due",
                 'body' => "Hi $first,\n\nThis is a friendly reminder from $site. Your next rent of $amt for $room is due on $due" . ($n === 1 ? ' (tomorrow)' : " (in $n days)") . ".$how$ignore\n$sign",
-                'sms' => "$site: rent of $amt for $room is due $due. $short",
             ];
         case 'due_today':
             return [
                 'subject' => "Rent due today: $amt",
                 'body' => "Hi $first,\n\nYour rent of $amt for $room is due today ($due).$how$ignore\n$sign",
-                'sms' => "$site: your rent of $amt for $room is due today. $short",
             ];
         case 'balance':
             return [
                 'subject' => "Payment balance: $amt still unpaid",
                 'body' => "Hi $first,\n\nWe received " . money($st['paid_on_item']) . " for the payment that was due on $due ({$st['label']}, $room), but $amt is still unpaid ($st[days] " . ($st['days'] === 1 ? 'day' : 'days') . " late). Total balance on your account: " . money($c['fin']['balance']) . ".$how$ignore\n$sign",
-                'sms' => "$site: balance of $amt is unpaid for $room (was due $due). Total balance " . money($c['fin']['balance']) . ". $short",
             ];
         case 'advance':
+            $hold = !empty($st['hold']) ? fmt_datetime((string)$st['hold']) : '';
             return [
-                'subject' => "Advance payment needed to hold your room",
-                'body' => "Hi $first,\n\nYour reservation $ref for $room (move-in " . fmt_date($res['move_in_date']) . ") is waiting for the advance payment of $amt. Until it is paid, the bed is not guaranteed.$how$ignore\n$sign",
-                'sms' => "$site: advance of $amt is needed to hold $room from " . fmt_date($res['move_in_date']) . ". $short",
+                'subject' => $hold ? "Your room hold ends soon ($hold)" : "Advance payment needed to hold your room",
+                'body' => "Hi $first,\n\nYour reservation $ref for $room (move-in " . fmt_date($res['move_in_date']) . ") is waiting for the payment of $amt. "
+                    . ($hold ? "The bed is held for you only until $hold. After that the hold ends automatically and the bed is offered to someone else." : 'Until it is paid, the bed is not guaranteed.') . "$how$ignore\n$sign",
             ];
         default: // overdue
             return [
                 'subject' => "Missing payment: $amt was due on $due",
                 'body' => "Hi $first,\n\nWe have not received your payment of $amt for $room, which was due on $due ($st[days] " . ($st['days'] === 1 ? 'day' : 'days') . " ago). Total balance on your account: " . money($c['fin']['balance']) . ".\n\nPlease pay as soon as you can. If you have a problem paying, talk to us so we can help.$how$ignore\n$sign",
-                'sms' => "$site: payment of $amt for $room was due $due and is missing. Total balance " . money($c['fin']['balance']) . ". $short",
             ];
     }
 }
@@ -245,6 +247,7 @@ function claim_reminder_run(int $gapSeconds): bool
  */
 function run_reminders(bool $onlyIfDue = false, ?int $onlyReservation = null, bool $force = false): array
 {
+    expire_unpaid_holds();      // release beds whose hold ran out, whatever the reminder settings are
     $cfg = reminder_settings();
     if (!$cfg['enabled'] && !$force) {
         return ['ok' => false, 'message' => 'Reminders are switched off in Settings.', 'results' => [], 'counts' => []];

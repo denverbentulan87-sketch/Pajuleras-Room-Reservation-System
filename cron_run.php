@@ -19,5 +19,5 @@ if (!claim_reminder_run(isset($_GET['now']) ? 0 : 3600)) {
     echo json_encode(['ok' => true, 'message' => 'Already checked recently.']);
     exit;
 }
-$r = run_reminders(false);
+$r = run_reminders(false);   // also releases expired holds
 echo json_encode(['ok' => $r['ok'], 'message' => $r['message'], 'counts' => $r['counts']]);

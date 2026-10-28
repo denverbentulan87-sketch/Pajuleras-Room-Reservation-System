@@ -189,3 +189,20 @@
 .gc-status > summary::-webkit-details-marker { display: none; }
 .gc-status > summary .ic { width: 1.05rem; height: 1.05rem; }
 .gc-status[open] > summary { margin-bottom: .4rem; }
+
+/* ---------- GCash: find what I owe ---------- */
+.gc-find { display: grid; gap: .5rem; margin: .2rem 0 .3rem; padding: .8rem .9rem; border-radius: 14px; background: #f0f6ff; border: 1.5px dashed #9fc2f6; }
+.gc-find[hidden] { display: none; }
+.gc-find .btn { justify-self: start; }
+.gc-find .btn .ic { width: 1rem; height: 1rem; margin-right: .3rem; }
+.gc-dues { display: grid; gap: .45rem; }
+.gc-dues[hidden] { display: none; }
+.gc-note { margin: 0; font-size: .92rem; }
+.gc-ok { font-weight: 600; color: #0b3c8a; }
+.gc-bad { color: #8c2a20; font-weight: 600; }
+.gc-due { display: flex !important; align-items: flex-start; gap: .65rem; padding: .6rem .8rem; border-radius: 12px; background: #fff; border: 1.5px solid #c7dbf8; cursor: pointer; transition: border-color .2s, background .2s; }
+.gc-due:hover { border-color: #2a7be4; }
+.gc-due input { margin-top: .25rem; accent-color: #0b57c4; flex: none; width: 1.1rem !important; }
+.gc-due:has(input:checked) { border-color: #0b57c4; background: #eaf2ff; }
+.gc-due-text { display: grid; gap: .1rem; }
+.gc-due-text small { color: var(--slate-2); }

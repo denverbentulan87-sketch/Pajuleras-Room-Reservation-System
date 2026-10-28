@@ -222,7 +222,7 @@ public_header(setting('site_name', 'Pajuleras Boarding House'), 'home');
       <ul class="pay-trust">
         <li><?= icon('shield') ?><span>Every report gets a code you can check any time</span></li>
         <li><?= icon('check') ?><span>Nothing is recorded until the landlord confirms it</span></li>
-        <li><?= icon('bell') ?><span>You are reminded by e-mail or text before rent is due</span></li>
+        <li><?= icon('bell') ?><span>You are reminded by e-mail or Messenger before rent is due</span></li>
       </ul>
     </div>
   </div>

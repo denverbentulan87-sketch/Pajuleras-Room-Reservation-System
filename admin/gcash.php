@@ -25,6 +25,9 @@ if (is_post()) {
                 log_activity('gcash_approved', 'reservation', (int)$res['id'], $sub['submission_code'] . ' approved: ' . money($amount) . ' (ref ' . $sub['gcash_ref'] . ')');
                 return $pid;
             });
+            // a reservation payment holds and confirms the bed by itself
+            $secured = secure_reservation_after_payment((int)fetch_val("SELECT reservation_id FROM payment_submissions WHERE id = ?", [$sid]));
+            if ($secured['message'] !== '') flash($secured['changed'] ? 'success' : 'warn', $secured['message']);
             // tell the tenant, clearly, that the money was received
             try {
                 $row = fetch_one("SELECT s.*, t.id AS tid, t.full_name, t.contact_no, t.email, t.messenger, v.reservation_no, v.id AS rid, p.receipt_no, p.amount AS paid_amount
@@ -35,8 +38,7 @@ if (is_post()) {
                     $balanceLine = $fin['balance'] > 0 ? 'Balance still unpaid: ' . money($fin['balance']) . '.' : ($fin['credit'] > 0 ? 'Your account is paid ahead by ' . money($fin['credit']) . '.' : 'Your account is fully paid. Thank you!');
                     notify_tenant(['id' => $row['tid'], 'contact_no' => $row['contact_no'], 'email' => $row['email'], 'messenger' => $row['messenger']], 'gcash_approved', [
                         'subject' => 'GCash payment received: ' . money($row['paid_amount']),
-                        'body' => 'Hi ' . first_name($row['full_name']) . ",\n\nWe received your GCash payment of " . money($row['paid_amount']) . ' (GCash reference ' . $row['gcash_ref'] . ', report ' . $row['submission_code'] . ").\nOfficial receipt no.: " . $row['receipt_no'] . "\n" . $balanceLine . "\n\nThank you,\n" . (setting('landlord_name') ?: $site) . "\n" . $site,
-                        'sms' => $site . ': GCash payment of ' . money($row['paid_amount']) . ' received (ref ' . $row['gcash_ref'] . '). Receipt ' . $row['receipt_no'] . '. ' . $balanceLine,
+                        'body' => 'Hi ' . first_name($row['full_name']) . ",\n\nWe received your GCash payment of " . money($row['paid_amount']) . ' (GCash reference ' . $row['gcash_ref'] . ', report ' . $row['submission_code'] . ").\nOfficial receipt no.: " . $row['receipt_no'] . "\n" . $balanceLine . ($secured['changed'] ? "\nYour bed is now secured." : '') . "\n\nThank you,\n" . (setting('landlord_name') ?: $site) . "\n" . $site,
                     ], ['reservation_id' => (int)$row['rid'], 'dedupe' => 'gc' . $sid . ':ok']);
                 }
             } catch (Throwable $e) {
@@ -63,7 +65,6 @@ if (is_post()) {
                 notify_tenant(['id' => $row['tid'], 'contact_no' => $row['contact_no'], 'email' => $row['email'], 'messenger' => $row['messenger']], 'gcash_rejected', [
                     'subject' => 'We could not confirm your GCash payment report',
                     'body' => 'Hi ' . first_name($row['full_name']) . ",\n\nWe could not confirm your GCash payment report " . $sub['submission_code'] . ' (reference ' . $sub['gcash_ref'] . ', ' . money($sub['amount']) . ").\nReason: " . $reason . "\n\nNo payment was recorded. If you did send the money, please contact us" . (setting('phone') !== '' ? ' at ' . setting('phone') : '') . " or send the report again with the correct details.\n\nThank you,\n" . (setting('landlord_name') ?: $site) . "\n" . $site,
-                    'sms' => $site . ': we could not confirm your GCash report ' . $sub['submission_code'] . '. Reason: ' . $reason . '. Please contact us' . (setting('phone') !== '' ? ' at ' . setting('phone') : '') . '.',
                 ], ['reservation_id' => (int)$sub['reservation_id'], 'dedupe' => 'gc' . $sid . ':no']);
             } catch (Throwable $e) {
                 error_log('[PBH] gcash reject notice failed: ' . $e->getMessage());

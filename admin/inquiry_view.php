@@ -58,7 +58,8 @@ if ($i['admin_unread']) {
 }
 $messages = fetch_all("SELECT * FROM inquiry_messages WHERE inquiry_id = ? ORDER BY created_at, id", [$id]);
 $reservations = fetch_all("SELECT id, reservation_no, status FROM reservations WHERE inquiry_id = ?", [$id]);
-$existingTenant = fetch_one("SELECT id, full_name, tenant_code FROM tenants WHERE contact_no = ? LIMIT 1", [$i['contact_no']]);
+$existingTenant = (!empty($i['tenant_id']) ? fetch_one("SELECT id, full_name, tenant_code FROM tenants WHERE id = ? AND anonymized_at IS NULL", [$i['tenant_id']]) : null)
+    ?: fetch_one("SELECT id, full_name, tenant_code FROM tenants WHERE contact_no = ? AND anonymized_at IS NULL ORDER BY id LIMIT 1", [$i['contact_no']]);
 $roomInfo = $i['room_id'] ? (rooms_with_status(false, (int)$i['room_id'])[0] ?? null) : null;
 
 admin_header('Inquiry ' . $i['ref_code'], 'inquiries');
@@ -109,10 +110,11 @@ page_head($i['name'], $i['subject'] . ' (' . $i['ref_code'] . ')', inquiry_badge
         <ul class="rows"><?php foreach ($reservations as $r): ?><li><a href="<?= e(url('admin/reservation_view.php?id=' . (int)$r['id'])) ?>"><?= e($r['reservation_no']) ?></a> <?= reservation_badge($r['status']) ?></li><?php endforeach; ?></ul>
       <?php endif; ?>
       <?php if ($existingTenant): ?>
-        <p class="hint">Already registered as <a href="<?= e(url('admin/tenant_view.php?id=' . (int)$existingTenant['id'])) ?>"><?= e($existingTenant['full_name']) ?></a>.</p>
+        <p class="hint">Registered as tenant <?= e($existingTenant['tenant_code']) ?>: <a href="<?= e(url('admin/tenant_view.php?id=' . (int)$existingTenant['id'])) ?>"><?= e($existingTenant['full_name']) ?></a>.</p>
         <a class="btn btn-primary block" href="<?= e(url('admin/reservation_form.php?tenant_id=' . (int)$existingTenant['id'] . '&inquiry_id=' . $id)) ?>">Create reservation</a>
       <?php else: ?>
-        <a class="btn btn-primary block" href="<?= e(url('admin/tenant_form.php?inquiry=' . $id)) ?>">Register tenant and reserve</a>
+        <p class="hint">Not registered yet. Reserving a room registers them automatically from this inquiry.</p>
+        <a class="btn btn-primary block" href="<?= e(url('admin/reservation_form.php?inquiry_id=' . $id)) ?>">Reserve a room</a>
       <?php endif; ?>
       <div class="stack">
         <?php if ($i['status'] !== 'closed'): ?>

@@ -16,7 +16,15 @@ if (is_post()) {
         }
         abort(419);
     }
-    if (post_str('action', 10) === 'status') {
+    if (post_str('action', 10) === 'lookup') {
+        $r = gcash_lookup(post_str('reservation_no', 20), post_str('contact_no', 30));
+        if ($ajax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($r, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $result = null;
+    } elseif (post_str('action', 10) === 'status') {
         $result = gcash_status_lookup(post_str('code', 20), post_str('contact_no', 30));
         if ($ajax) {
             header('Content-Type: application/json; charset=utf-8');

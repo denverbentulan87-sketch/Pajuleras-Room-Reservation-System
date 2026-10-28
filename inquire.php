@@ -21,7 +21,7 @@ function new_ref_code(): string
 $rooms = rooms_with_status(true);
 $errors = [];
 $OLD = [
-    'name' => '', 'contact_no' => '', 'email' => '', 'occupation' => '', 'gender' => '', 'school' => '', 'consent' => '',
+    'name' => '', 'contact_no' => '', 'email' => '', 'occupation' => '', 'gender' => '', 'school' => '', 'messenger' => '', 'consent' => '',
     'room_id' => get_int('room') ?: '', 'move_in' => valid_date(get_str('date', 10)) ? get_str('date', 10) : '', 'message' => '',
 ];
 
@@ -48,7 +48,7 @@ if (is_post()) {
         'name' => post_str('name', 120), 'contact_no' => post_str('contact_no', 30), 'email' => post_str('email', 150),
         'occupation' => post_str('occupation', 20), 'room_id' => post_int('room_id') ?: '', 'move_in' => post_str('move_in', 10),
         'message' => post_str('message', 2000),
-        'gender' => post_str('gender', 10), 'school' => post_str('school', 150), 'consent' => post_str('consent', 3),
+        'gender' => post_str('gender', 10), 'school' => post_str('school', 150), 'messenger' => post_str('messenger', 120), 'consent' => post_str('consent', 3),
     ];
 
     if (post_str('website', 100) !== '') {           // honeypot: real people never fill this in
@@ -93,7 +93,7 @@ if (is_post()) {
             $email = $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null;
             // 1. register the person as a tenant from what they typed (or match the existing tenant)
             $tenantId = inquiry_register_tenant(['name' => $OLD['name'], 'gender' => $OLD['gender'], 'contact_no' => $phone, 'email' => $email,
-                                                 'occupation' => $OLD['occupation'], 'school' => $OLD['school']]);
+                                                 'occupation' => $OLD['occupation'], 'school' => $OLD['school'], 'messenger' => $OLD['messenger']]);
             // 2. record the inquiry
             q("INSERT INTO inquiries (ref_code, name, contact_no, email, room_id, preferred_move_in, occupation, gender, school_or_workplace, tenant_id, consent_at, subject, status, admin_unread, ip)
                VALUES (?,?,?,?,?,?,?,?,?,?, NOW(), ?, 'new', 1, ?)",
@@ -113,7 +113,7 @@ if (is_post()) {
             if ($result['email']) {
                 notify_tenant(['id' => $result['tenant_id'], 'email' => $result['email'], 'contact_no' => $phone], 'inquiry_reply',
                     ['subject' => $result['auto']['title'] . ' (' . $result['ref'] . ')', 'body' => $result['auto']['text'] . "\n\nTo read replies and send follow-ups, open Check my inquiry on our website and enter code " . $result['ref'] . ' with your contact number.'],
-                    ['inquiry_id' => $result['id'], 'dedupe' => 'inq' . $result['id'], 'sms' => false, 'auto_only' => true]);
+                    ['inquiry_id' => $result['id'], 'dedupe' => 'inq' . $result['id'], 'auto_only' => true]);
             }
         } catch (Throwable $e) {
             error_log('[PBH] inquiry e-mail failed: ' . $e->getMessage());
@@ -210,6 +210,9 @@ public_header('Send an inquiry', 'inquire', 'Ask the landlord about rooms, rates
           <input type="text" name="school" value="<?= e(old('school')) ?>" maxlength="150" autocomplete="organization">
         </label>
       </div>
+      <label>Messenger name <span class="opt">(optional, so the landlord can message you about payments)</span>
+        <input type="text" name="messenger" value="<?= e(old('messenger')) ?>" maxlength="120" placeholder="e.g. juan.delacruz or your Facebook link" autocomplete="off">
+      </label>
       <div class="row-2">
         <label>Room you are interested in
           <select name="room_id">

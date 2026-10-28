@@ -101,14 +101,18 @@ function inquiry_register_tenant(array $d): int
         if (($existing['email'] === null || $existing['email'] === '') && !empty($d['email'])) {
             q("UPDATE tenants SET email = ? WHERE id = ?", [$d['email'], $existing['id']]);
         }
+        if (($existing['messenger'] === null || $existing['messenger'] === '') && !empty($d['messenger'])) {
+            q("UPDATE tenants SET messenger = ? WHERE id = ?", [$d['messenger'], $existing['id']]);
+        }
         return (int)$existing['id'];
     }
     $occ = in_array($d['occupation'], ['student', 'employee'], true) ? $d['occupation'] : 'other';
-    q("INSERT INTO tenants (full_name, gender, contact_no, email, occupation, school_or_workplace, status, source, consent_at)
-       VALUES (?,?,?,?,?,?, 'active', 'inquiry', NOW())",
-      [$d['name'], $d['gender'], $d['contact_no'], $d['email'] ?: null, $occ, $d['school'] ?: null]);
+    $source = ($d['source'] ?? 'inquiry') === 'admin' ? 'admin' : 'inquiry';
+    q("INSERT INTO tenants (full_name, gender, contact_no, email, messenger, occupation, school_or_workplace, status, source, consent_at)
+       VALUES (?,?,?,?,?,?,?, 'active', ?, " . ($source === 'inquiry' ? 'NOW()' : 'NULL') . ")",
+      [$d['name'], $d['gender'], $d['contact_no'], $d['email'] ?: null, ($d['messenger'] ?? '') ?: null, $occ, $d['school'] ?: null, $source]);
     $id = (int)db()->lastInsertId();
     q("UPDATE tenants SET tenant_code = ? WHERE id = ?", ['T-' . str_pad((string)$id, 4, '0', STR_PAD_LEFT), $id]);
-    log_activity('tenant_registered', 'tenant', $id, $d['name'] . ' registered automatically from an inquiry');
+    log_activity('tenant_registered', 'tenant', $id, $d['name'] . ($source === 'inquiry' ? ' registered automatically from an inquiry' : ' registered automatically when a room was reserved'));
     return $id;
 }

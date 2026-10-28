@@ -190,13 +190,25 @@ function public_footer(): void
  * ================================================================== */
 function admin_header(string $title, string $active = '', array $opts = []): void
 {
+    if (is_modal()) {
+        // pop-up request: send only the content, none of the page around it (and no extra queries)
+        $GLOBALS['ADMIN_ICON'] = '';
+        echo '<div class="mfrag" data-mtitle="' . e($title) . '">';
+        return;
+    }
+    if (($_SESSION['hold_check'] ?? 0) < time() - 300) {
+        $_SESSION['hold_check'] = time();
+        expire_unpaid_holds();      // beds held without payment are released when the deadline passes
+    }
     $site = setting('site_name', 'Pajuleras Boarding House');
     $admin = $GLOBALS['ADMIN'] ?? ['full_name' => 'Landlord', 'username' => 'admin'];
     $unread = 0;
     $gcashPending = gcash_pending_count();
     $manualCount = 0;
+    $pendingRes = 0;
     try {
         $manualCount = (int)fetch_val("SELECT COUNT(*) FROM notifications WHERE status = 'manual'");
+        $pendingRes = (int)fetch_val("SELECT COUNT(*) FROM reservations WHERE status = 'pending'");
     } catch (Throwable $e) {
         $manualCount = 0;
     }
@@ -216,21 +228,29 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
         ],
         'Money' => [
             'payments'     => ['Payments', 'admin/payments.php', 'cash'],
-            'reminders'    => ['Payment reminders', 'admin/reminders.php', 'bell'],
-            'gcash'        => ['GCash payments', 'admin/gcash.php', 'wallet'],
+            'gcash'        => ['GCash', 'admin/gcash.php', 'wallet'],
+            'reminders'    => ['Reminders', 'admin/reminders.php', 'bell'],
             'reports'      => ['Reports', 'admin/reports.php', 'chart'],
         ],
         'System' => [
             'settings'     => ['Settings', 'admin/settings.php', 'sliders'],
-            'activity'     => ['Activity log', 'admin/activity.php', 'history'],
+            'activity'     => ['Activity', 'admin/activity.php', 'history'],
         ],
     ];
+    $counts = ['inquiries' => $unread, 'gcash' => $gcashPending, 'reminders' => $manualCount, 'reservations' => $pendingRes];
     $GLOBALS['ADMIN_ICON'] = '';
     foreach ($groups as $items) {
         if (isset($items[$active])) {
             $GLOBALS['ADMIN_ICON'] = $items[$active][2];
         }
     }
+    $alerts = array_values(array_filter([
+        $unread > 0       ? ['inbox',    plural($unread, 'unread inquiry', 'unread inquiries'), 'admin/inquiries.php'] : null,
+        $pendingRes > 0   ? ['calendar', plural($pendingRes, 'reservation') . ' to confirm', 'admin/reservations.php?status=pending'] : null,
+        $gcashPending > 0 ? ['wallet',   plural($gcashPending, 'GCash report') . ' to review', 'admin/gcash.php'] : null,
+        $manualCount > 0  ? ['bell',     plural($manualCount, 'reminder') . ' to send by hand', 'admin/reminders.php#by-hand'] : null,
+    ]));
+    $alertTotal = $unread + $pendingRes + $gcashPending + $manualCount;
     ?>
 <!doctype html>
 <html lang="en">
@@ -239,6 +259,7 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <?= favicon_links() ?><title><?= e($title) ?> | Admin | <?= e($site) ?></title>
+<script src="<?= e(asset('assets/js/admin-boot.js')) ?>"></script>
 <link rel="stylesheet" href="<?= e(asset('assets/css/base.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset('assets/css/admin.css')) ?>">
 </head>
@@ -246,36 +267,65 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
 <a class="skip" href="#main">Skip to content</a>
 <div class="shell">
   <aside class="sidebar" id="sidebar">
-    <a class="side-brand" href="<?= e(url('admin/')) ?>">
+    <a class="side-brand" href="<?= e(url('admin/')) ?>" title="<?= e($site) ?>">
       <span class="brand-mark" aria-hidden="true"><?= icon('home') ?></span>
-      <span><strong><?= e($site) ?></strong><small>Management system</small></span>
+      <span class="side-brand-text"><strong><?= e($site) ?></strong><small>Management system</small></span>
     </a>
     <nav class="side-nav" aria-label="Admin">
       <?php foreach ($groups as $groupName => $items): ?>
         <p class="side-group"><?= e($groupName) ?></p>
         <?php foreach ($items as $key => [$label, $href, $ic]): ?>
-          <a href="<?= e(url($href)) ?>"<?= $active === $key ? ' class="active" aria-current="page"' : '' ?>>
+          <a href="<?= e(url($href)) ?>" title="<?= e($label) ?>"<?= $active === $key ? ' class="active" aria-current="page"' : '' ?>>
             <?= icon($ic) ?><span class="side-label"><?= e($label) ?></span>
-            <?php if ($key === 'inquiries' && $unread > 0): ?><span class="count"><?= $unread ?></span><?php endif; ?>
-            <?php if ($key === 'gcash' && $gcashPending > 0): ?><span class="count"><?= $gcashPending ?></span><?php endif; ?>
-            <?php if ($key === 'reminders' && $manualCount > 0): ?><span class="count"><?= $manualCount ?></span><?php endif; ?>
+            <?php if (!empty($counts[$key])): ?><span class="count"><?= (int)$counts[$key] ?></span><?php endif; ?>
           </a>
         <?php endforeach; ?>
       <?php endforeach; ?>
     </nav>
     <div class="side-foot">
-      <a href="<?= e(url('')) ?>" target="_blank" rel="noopener"><?= icon('globe') ?><span>View public website</span></a>
+      <a href="<?= e(url('')) ?>" target="_blank" rel="noopener" title="View public website"><?= icon('globe') ?><span class="side-label">View public website</span></a>
     </div>
   </aside>
   <div class="content">
     <header class="topbar">
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="sidebar" data-side-toggle aria-label="Open menu"><?= icon('menu') ?></button>
+      <button class="side-collapse" type="button" data-side-collapse aria-label="Collapse or expand the menu" title="Collapse or expand the menu"><?= icon('menu') ?></button>
       <div class="topbar-title"><?= $GLOBALS['ADMIN_ICON'] ? icon($GLOBALS['ADMIN_ICON']) : '' ?><span><?= e($title) ?></span></div>
+
+      <div class="gsearch" data-gsearch data-endpoint="<?= e(url('admin/search.php')) ?>" role="search">
+        <span class="gs-ic" aria-hidden="true"><?= icon('search') ?></span>
+        <input id="gs-input" type="search" placeholder="Search tenants, reservations, rooms…" autocomplete="off" spellcheck="false" aria-label="Search" aria-controls="gs-results" aria-expanded="false">
+        <kbd class="gs-key" aria-hidden="true">/</kbd>
+        <div class="gs-results" id="gs-results" role="listbox" hidden></div>
+      </div>
+
+      <div class="dd" data-dd>
+        <button class="btn btn-primary dd-btn" type="button" data-dd-toggle aria-haspopup="true" aria-expanded="false"><?= icon('plus') ?><span>New</span></button>
+        <div class="dd-menu" role="menu" hidden>
+          <a role="menuitem" href="<?= e(url('admin/reservation_form.php')) ?>"><?= icon('calendar') ?><span>Reservation</span></a>
+          <a role="menuitem" href="<?= e(url('admin/payment_form.php')) ?>"><?= icon('cash') ?><span>Payment</span></a>
+          <a role="menuitem" href="<?= e(url('admin/tenant_form.php')) ?>"><?= icon('users') ?><span>Tenant</span></a>
+          <a role="menuitem" href="<?= e(url('admin/room_form.php')) ?>"><?= icon('bed') ?><span>Room</span></a>
+        </div>
+      </div>
+
+      <div class="dd" data-dd>
+        <button class="icon-btn bell" type="button" data-dd-toggle aria-haspopup="true" aria-expanded="false" aria-label="Alerts<?= $alertTotal ? ', ' . $alertTotal . ' need attention' : '' ?>"><?= icon('bell') ?><?php if ($alertTotal > 0): ?><span class="bell-count"><?= $alertTotal > 99 ? '99+' : $alertTotal ?></span><?php endif; ?></button>
+        <div class="dd-menu dd-alerts" role="menu" hidden>
+          <p class="dd-title">Needs your attention</p>
+          <?php if ($alerts): foreach ($alerts as [$ai, $at, $ah]): ?>
+            <a role="menuitem" href="<?= e(url($ah)) ?>"><?= icon($ai) ?><span><?= e($at) ?></span></a>
+          <?php endforeach; else: ?>
+            <p class="dd-empty"><?= icon('check') ?><span>All caught up</span></p>
+          <?php endif; ?>
+        </div>
+      </div>
+
       <div class="topbar-user">
-        <span><?= e($admin['full_name']) ?></span>
+        <span class="tu-name"><?= e($admin['full_name']) ?></span>
         <form method="post" action="<?= e(url('admin/logout.php')) ?>">
           <?= csrf_field() ?>
-          <button class="btn btn-sm btn-ghost" type="submit"><?= icon('logout') ?><span>Sign out</span></button>
+          <button class="btn btn-sm btn-ghost" type="submit" title="Sign out"><?= icon('logout') ?><span class="tu-out">Sign out</span></button>
         </form>
       </div>
     </header>
@@ -286,11 +336,16 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
 
 function admin_footer(): void
 {
+    if (is_modal()) {
+        echo '</div>';
+        return;
+    }
     ?>
     </main>
   </div>
 </div>
 <script src="<?= e(asset('assets/js/app.js')) ?>" defer></script>
+<script src="<?= e(asset('assets/js/admin.js')) ?>" defer></script>
 </body>
 </html>
 <?php
@@ -299,6 +354,10 @@ function admin_footer(): void
 /** Page heading with optional action buttons (HTML passed in $actions is trusted). */
 function page_head(string $title, string $sub = '', string $actions = ''): void
 {
+    if (is_modal()) {
+        echo $sub !== '' ? '<p class="m-sub">' . e($sub) . '</p>' : '';
+        return;
+    }
     $ic = (string)($GLOBALS['ADMIN_ICON'] ?? '');
     echo '<div class="page-head"><div class="page-head-main">' . ($ic !== '' ? '<span class="page-ic">' . icon($ic) . '</span>' : '')
        . '<div><h1>' . e($title) . '</h1>' . ($sub !== '' ? '<p class="sub">' . e($sub) . '</p>' : '') . '</div></div>';

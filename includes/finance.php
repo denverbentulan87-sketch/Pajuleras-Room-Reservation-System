@@ -93,13 +93,18 @@ function compute_financials(array $res, array $t = []): array
     $other   = (float)($t['other'] ?? 0);
     $refund  = (float)($t['refund'] ?? 0);
 
+    // Deposit kept at move-out: part settles unpaid rent, part covers damages or other costs.
+    $keptRent  = (float)($res['deposit_kept_rent'] ?? 0);
+    $keptOther = (float)($res['deposit_kept_other'] ?? 0);
+    $kept      = round($keptRent + $keptOther, 2);
+
     $cycles = billing_cycles($res);
     $cancelled = $res['status'] === 'cancelled';
 
     $rentDue = $cancelled ? 0.0 : round((float)$res['monthly_rate'] * $cycles, 2);
     $depDue  = $cancelled ? 0.0 : round((float)$res['deposit_amount'], 2);
     $due     = $rentDue + $depDue;
-    $paid    = round($advance + $deposit + $rent, 2);
+    $paid    = round($advance + $deposit + $rent + $keptRent, 2);
     $balance = $cancelled ? 0.0 : round($due - $paid, 2);
 
     $nextDue = null;
@@ -118,8 +123,8 @@ function compute_financials(array $res, array $t = []): array
     // What can still be handed back: everything for a cancelled reservation,
     // otherwise only the deposit and any rent paid ahead (never earned rent).
     $refundable = $cancelled
-        ? max(0.0, round($paid + $other - $refund, 2))
-        : max(0.0, round($deposit + ($balance < 0 ? abs($balance) : 0.0) - $refund, 2));
+        ? max(0.0, round($paid + $other - $refund - $kept, 2))
+        : max(0.0, round($deposit + ($balance < 0 ? abs($balance) : 0.0) - $refund - $kept, 2));
 
     return [
         'cycles'         => $cycles,
@@ -132,6 +137,7 @@ function compute_financials(array $res, array $t = []): array
         'paid_rent'      => $rent,
         'paid_other'     => $other,
         'refunded'       => $refund,
+        'deposit_kept'   => $kept,
         'held'           => round($paid + $other - $refund, 2),
         'refundable'     => $refundable,
         'balance'        => max(0.0, $balance),

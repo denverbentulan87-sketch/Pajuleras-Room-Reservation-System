@@ -119,6 +119,7 @@ require_once __DIR__ . '/uploads.php';
 require_once __DIR__ . '/notify.php';
 require_once __DIR__ . '/reminders.php';
 require_once __DIR__ . '/inquiry.php';
+require_once __DIR__ . '/lifecycle.php';
 require_once __DIR__ . '/track.php';
 require_once __DIR__ . '/gcash.php';
 require_once __DIR__ . '/chatbot.php';

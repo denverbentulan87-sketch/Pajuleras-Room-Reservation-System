@@ -51,7 +51,7 @@ $ch = notify_channels();
 $cfg = reminder_settings();
 $lastRun = (int)setting('reminders_last_run', '0');
 $typeLabel = ['upcoming' => 'Coming up', 'due_today' => 'Due today', 'overdue' => 'Missing payment', 'balance' => 'Balance left', 'advance' => 'Advance not paid',
-              'gcash_approved' => 'GCash received', 'gcash_rejected' => 'GCash not confirmed', 'inquiry_reply' => 'Inquiry reply', 'test' => 'Test'];
+              'gcash_approved' => 'GCash received', 'reservation_held' => 'Room held', 'reservation_secured' => 'Bed secured', 'hold_expired' => 'Hold ended', 'moveout_notice' => 'Move-out notice', 'settlement' => 'Move-out summary', 'reservation_cancelled' => 'Cancellation', 'gcash_rejected' => 'GCash not confirmed', 'inquiry_reply' => 'Inquiry reply', 'test' => 'Test'];
 $tone = ['overdue' => 'bad', 'balance' => 'warn', 'due_today' => 'warn', 'advance' => 'info', 'upcoming' => 'neutral'];
 
 admin_header('Payment reminders', 'reminders');
@@ -62,10 +62,9 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
   <div class="panel-head"><h2>How reminders are delivered</h2><a href="<?= e(url('admin/settings.php?tab=notify')) ?>">Settings</a></div>
   <div class="chan-row">
     <div class="chan <?= $ch['email'] ? 'chan-on' : 'chan-off' ?>"><strong>E-mail</strong><span><?= $ch['email'] ? 'Set up. Sent automatically.' : 'Not set up yet.' ?></span></div>
-    <div class="chan <?= $ch['sms'] ? 'chan-on' : 'chan-off' ?>"><strong>Text message (SMS)</strong><span><?= $ch['sms'] ? 'Set up. Sent automatically.' : 'Not set up yet.' ?></span></div>
     <div class="chan chan-hand"><strong>Messenger</strong><span>One tap from the list below (Facebook does not allow automatic messages).</span></div>
   </div>
-  <p class="hint">Order: e-mail first, then text message. If neither works or is set up, the message is prepared below so you can send it with one tap.
+  <p class="hint">E-mail is sent automatically. When a tenant has no e-mail, or e-mail is not set up or fails, the message is prepared below so you can send it with one tap on Messenger.
      Reminders are <?= $cfg['enabled'] ? '<strong>on</strong>' : '<strong>off</strong>' ?>: <?= (int)$cfg['before'] ?> days before the due date, on the due date, then every <?= (int)$cfg['repeat'] ?> days while unpaid.
      <?= $lastRun > 0 ? 'Last check: ' . e(fmt_datetime(date('Y-m-d H:i:s', $lastRun))) . '.' : 'Not checked yet.' ?></p>
 </section>
@@ -84,7 +83,7 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
             <?php elseif ($st['state'] === 'upcoming'): ?><br><span class="muted small">in <?= (int)(-$st['days']) ?> <?= -$st['days'] === 1 ? 'day' : 'days' ?></span><?php endif; ?></td>
         <td><?= $st['due'] ? e(fmt_date($st['due'])) : '' ?></td>
         <td class="num"><strong><?= e(money($st['amount'])) ?></strong><?php if (in_array($st['state'], ['overdue', 'balance'], true) && abs($c['fin']['balance'] - $st['amount']) > 0.005): ?><br><span class="muted small">total owed <?= e(money($c['fin']['balance'])) ?></span><?php endif; ?></td>
-        <td><?= $ls ? e(['email' => 'E-mailed', 'sms' => 'Texted', 'manual' => ($ls['status'] === 'manual' ? 'Prepared' : 'Sent by hand'), 'messenger' => 'Messenger'][$ls['channel']] ?? $ls['channel']) . '<br><span class="muted small">' . e(fmt_datetime($ls['created_at'])) . '</span>' : '<span class="muted small">None yet</span>' ?></td>
+        <td><?= $ls ? e(['email' => 'E-mailed', 'manual' => ($ls['status'] === 'manual' ? 'Prepared' : 'Sent by hand'), 'messenger' => 'Messenger'][$ls['channel']] ?? $ls['channel']) . '<br><span class="muted small">' . e(fmt_datetime($ls['created_at'])) . '</span>' : '<span class="muted small">None yet</span>' ?></td>
         <td class="actions"><form method="post" class="inline-form"><?= csrf_field() ?><input type="hidden" name="action" value="send_now"><input type="hidden" name="reservation_id" value="<?= (int)$res['id'] ?>"><button class="btn btn-sm" type="submit">Remind now</button></form></td>
       </tr>
     <?php endforeach; ?>
@@ -137,7 +136,7 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
         <td><?= e(fmt_datetime($n['created_at'])) ?></td>
         <td><?= e($n['full_name'] ?? '') ?><br><span class="muted small"><?= e($n['recipient'] ?? '') ?></span></td>
         <td><?= e($typeLabel[$n['type']] ?? $n['type']) ?><?= $n['reservation_no'] ? '<br><span class="muted small">' . e($n['reservation_no']) . '</span>' : '' ?></td>
-        <td><?= e(['email' => 'E-mail', 'sms' => 'Text message', 'messenger' => 'Messenger', 'manual' => 'By hand'][$n['channel']] ?? $n['channel']) ?></td>
+        <td><?= e(['email' => 'E-mail', 'sms' => 'Text message (old)', 'messenger' => 'Messenger', 'manual' => 'By hand'][$n['channel']] ?? $n['channel']) ?></td>
         <td><?= badge(['sent' => 'Sent', 'failed' => 'Failed', 'manual' => 'Waiting for you', 'skipped' => 'Dismissed'][$n['status']] ?? $n['status'], ['sent' => 'ok', 'failed' => 'bad', 'manual' => 'warn', 'skipped' => 'neutral'][$n['status']] ?? 'neutral') ?><?= $n['error'] ? '<br><span class="muted small">' . e($n['error']) . '</span>' : '' ?></td>
       </tr>
     <?php endforeach; ?>

@@ -1,6 +1,7 @@
 # Pajuleras Boarding House Management System
 
-A PHP + MySQL website for Pajuleras Boarding House (Poblacion, Inabanga, Bohol), built by Denver Bentulan.
+A PHP + MySQL website for Pajuleras Boarding House (Poblacion, Inabanga, Bohol), built from the
+group's documentation (Group 7, IS105). It has two sides:
 
 * **Public website** (customers and tenants, no login): see rooms and live bed availability,
   read rates, requirements and house rules, **send an inquiry**, and later **read the landlord's
@@ -21,7 +22,7 @@ XAMPP (current version) already includes everything.
 3. Open **http://localhost/phpmyadmin** > **Import**:
    1. choose `database/01_schema.sql` > **Go** (creates database `pajuleras_bh`, tables, the admin account)
    2. *(optional demo data)* choose `database/02_sample_data.sql` > **Go**
-4. Open **http://localhost/Pajuleras Room Reservation System/**
+4. Open **http://localhost/pajuleras_bh/**
 5. Landlord sign in: on the landing page click the **Landlord login** button in the footer (it is also in the mobile menu). It opens a sign-in pop-up.
    There is no separate login page.
    * username `admin`, password `Pajuleras@2026`
@@ -122,9 +123,39 @@ uploads/      room photos uploaded by the landlord
 * **Inquiries get an instant, honest reply.** The moment someone sends an inquiry, the system checks the room (open bed for their move-in date, gender policy, under repair) and replies in the pop-up, in their inquiry conversation, and by e-mail if they gave one: **Confirmed** (room has an open bed), **Not confirmed** (room is full, closed, or for the other gender, with rooms that do have space), or a list of open beds when no room was chosen. "Confirmed" never holds a bed. Beds are only held when you confirm the reservation.
 * **New people are registered automatically.** From the inquiry (name, gender, contact number, e-mail, school or workplace) a tenant record is created and marked "From inquiry". If the contact number already belongs to a tenant, no duplicate is made. People must tick a consent box first.
 * **Rent due dates and payment reminders.** Rent is due one month after move-in, then every month on the same day. Each reservation shows a **Payment schedule** (what is due, when, paid or missing). Tenants are reminded: a few days before the due date, on the due date, and while a payment is missing or only partly paid (repeating every few days, up to a limit). Each reminder is sent only once per due date. Set the timing in **Settings > Reminders & notifications**.
-  * **E-mail** and **text message (Semaphore)** are sent automatically once you fill in `config/config.php` (the settings page explains how, with test buttons). The secrets stay in that file, not in the database.
+  * **E-mail** is sent automatically once you fill in `config/config.php` (the settings page explains how, with a test button). The secret stays in that file, not in the database. There is no SMS: payments and reminders use e-mail and Messenger only.
   * **Messenger** (and any channel that is not set up or fails) is prepared in **Admin > Payment reminders** with one-tap buttons. Facebook does not allow automatic Messenger messages without an approved app, so this is always one tap.
-  * Tenants are also e-mailed or texted when you approve or reject their GCash report.
+  * Tenants are also e-mailed when you approve or reject their GCash report.
   * Every message is logged (who, when, how, result) in **Admin > Payment reminders**.
   * **To run daily even when nobody opens the website:** schedule `php cron/reminders.php` (Windows Task Scheduler) or open `cron_run.php?token=...` (the address is on the settings page) from a cron job. Without that, the site also checks by itself every 6 hours when someone opens the home page or you open the dashboard.
 * **Safe, clear and traceable.** Consent before storing details, reports are checked against reservation and contact number, duplicate GCash references are refused, nothing is recorded until you approve it, every payment gets an official receipt, private screenshots are only visible to you, failed attempts are rate-limited, and all actions are in the activity log.
+
+### Tenants are registered automatically when a room is reserved
+* New inquiries register the person as a tenant right away (marked "From inquiry").
+* When you **reserve a room**, the reservation form now also registers the person automatically if they are not registered yet, whatever route they came from: an older inquiry, an inquiry whose contact number was changed, or a walk-in with no inquiry. Pick the room and fill in the "New person?" panel (pre-filled from the inquiry; only the gender may need choosing) and both the tenant and the reservation are saved together, or neither is.
+* If the contact number already belongs to a tenant, that tenant is used. No duplicates are ever created.
+
+
+## Latest update: pop-up admin, a realistic reservation process, no SMS
+
+**Upgrading an older install?** In phpMyAdmin > Import, run `database/06_upgrade_add_reservation_lifecycle.sql` once (after 05 if you have not run that one).
+
+### The admin dashboard
+* **Every create, edit and action is a pop-up**: rooms, tenants, reservations, payments, check-in, check-out, cancel, transfer, move-out notice, void a payment, approve or reject a GCash report. Errors appear inside the pop-up, saving shows a toast, and delete asks with a styled confirmation. Everything still works as a normal page if JavaScript is off.
+* **A useful top bar**: search anything (tenants, reservations, rooms, inquiries; press `/`), a **+ New** menu, an **alerts bell** with what needs attention, and a collapsible sidebar. The content now uses the full width of the screen.
+* **Each reservation shows a progress tracker** (Reserved, Bed held, Secured, Moved in, Monthly rent, Moved out) and what to do next.
+
+### The reservation process (modelled on real boarding houses and dormitories)
+1. **Inquiry**: the person gets an instant answer (confirmed / not confirmed) and is registered as a tenant.
+2. **Reserve and hold**: confirming a reservation holds the bed for **N days** (Settings > Rates, requirements & rules > *How reserving works*) while the **reservation fee** (or the advance) is paid. The tenant is told the deadline and how to pay.
+3. **Pay to secure**: paying the reservation amount, in cash or by GCash, **confirms the reservation by itself**. If the hold runs out unpaid, the bed is **released automatically** (even before the cleanup runs, beds are counted as free) and the tenant is told.
+4. **Move in**: the check-in pop-up shows what is owed (deposit + rest of the first month) and records the room condition. Checking in with an unpaid balance needs an explicit tick.
+5. **Monthly rent** on the move-in date, with reminders (e-mail, or Messenger by one tap).
+6. **Move-out notice** (default 30 days; a shorter notice needs an explicit tick), then **check-out with deposit settlement**: unpaid rent can be taken from the deposit, damages are deducted with a written reason, the refund is calculated live and recorded with a receipt, and the tenant gets a move-out summary. The books always end at zero owed and zero refundable.
+7. **Cancelling** follows the reservation-fee policy (kept or refundable) and you can change the refund amount; refunds can never exceed what was received.
+
+### Safer and smoother
+* **No double saving**: payment forms are single-use, so a double click or a refresh cannot record a payment twice.
+* **Tenants pay by GCash with less guessing**: "Find what I owe" shows their reservation and what is due and fills in the type and amount. They can also check a report's status with its code.
+* **Fewer needless requests**: the search waits, cancels old lookups and remembers results; pop-up forms load only when opened; the public pages no longer do heavy availability work on every page view; pending reservations are not chased with reminders; and the same by-hand message is never queued twice.
+* **SMS has been removed.** Reminders and receipts go by **e-mail** (automatic once set up in `config/config.php`) or **Messenger** (one tap from Admin > Payment reminders, because Facebook does not allow automatic messages). Tenants can give their Messenger name when they inquire.

@@ -130,7 +130,7 @@ page_head($tenant ? 'Edit ' . $tenant['full_name'] : 'Register tenant', 'Record 
   <label>Notes <span class="opt">(private, only you see this)</span><textarea name="notes" rows="3" maxlength="2000"><?= e(old('notes')) ?></textarea></label>
   <div class="form-actions">
     <button class="btn btn-primary" type="submit"><?= $tenant ? 'Save changes' : ($inquiryId || $next ? 'Save and continue to reservation' : 'Register tenant') ?></button>
-    <a class="btn" href="<?= e(url($tenant ? 'admin/tenant_view.php?id=' . $id : 'admin/tenants.php')) ?>">Cancel</a>
+    <a class="btn" data-cancel href="<?= e(url($tenant ? 'admin/tenant_view.php?id=' . $id : 'admin/tenants.php')) ?>">Cancel</a>
   </div>
 </form>
 <?php admin_footer();

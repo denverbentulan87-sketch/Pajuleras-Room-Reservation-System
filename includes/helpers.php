@@ -80,10 +80,23 @@ function is_post(): bool
     return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
 }
 
+/** True when the admin page was requested by the pop-up (modal) system: only the form is sent, no page chrome. */
+function is_modal(): bool
+{
+    return ($_SERVER['HTTP_X_MODAL'] ?? '') === '1';
+}
+
 function redirect(string $path): void
 {
     if (!preg_match('#^https?://#i', $path)) {
         $path = url($path);
+    }
+    if (is_modal()) {
+        // the pop-up decides what to do: show the messages, or close and go to the next page
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode(['ok' => true, 'redirect' => $path, 'flashes' => $GLOBALS['MODAL_FLASH'] ?? []], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
     header('Location: ' . $path);
     exit;
@@ -100,6 +113,10 @@ function safe_return(?string $r, string $default): string
 
 function flash(string $type, string $msg): void
 {
+    if (is_modal()) {
+        $GLOBALS['MODAL_FLASH'][] = ['type' => $type, 'msg' => $msg];   // returned to the pop-up, not stored in the session
+        return;
+    }
     $_SESSION['flash'][] = ['type' => $type, 'msg' => $msg];
 }
 
@@ -127,6 +144,10 @@ function abort(int $code, string $message = ''): void
         default => 'This request could not be completed.',
     };
     $inAdmin = (basename(dirname($_SERVER['SCRIPT_NAME'] ?? '')) === 'admin');
+    if (is_modal()) {
+        echo '<div class="mfrag" data-mtitle="' . e($title) . '"><div class="flash flash-error" role="alert"><span>' . e($msg) . '</span></div></div>';
+        exit;
+    }
     if ($inAdmin && is_admin()) {
         admin_header($title, '');
         echo '<div class="panel"><h2>' . e($title) . '</h2><p>' . e($msg) . '</p><p><a class="btn" href="' . e(url('admin/')) . '">Back to dashboard</a></p></div>';
