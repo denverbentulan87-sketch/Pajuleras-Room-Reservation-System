@@ -73,18 +73,29 @@
   if (dlg.hasAttribute('data-autoopen')) { open(); }
 })();
 
-/* Copy a prepared message (admin > Payment reminders) */
+/* Copy a prepared message (admin > Payment reminders, reservation page) */
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-copy-text]');
   if (!b) { return; }
   var text = b.getAttribute('data-copy-text');
+  var isChat = b.matches('a[href*="m.me"]');
   var done = function () {
     var label = b.querySelector('span');
-    if (!label) { return; }
-    var old = label.textContent; label.textContent = 'Copied!';
-    window.setTimeout(function () { label.textContent = old; }, 1600);
+    if (label && !isChat) { var old = label.textContent; label.textContent = 'Copied!'; window.setTimeout(function () { label.textContent = old; }, 1600); }
+    if (window.pbhToast) { window.pbhToast(isChat ? 'Message copied. In the Messenger chat, paste it and press send.' : 'Message copied.', 'success'); }
   };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(done, function () { /* ignore */ });
-  }
+  var fail = function () {
+    if (window.pbhToast) { window.pbhToast('The message could not be copied automatically. Press "Copy text" or open "Read the message" and copy it by hand.', 'warn'); }
+  };
+  var fallback = function () {
+    try {
+      var t = document.createElement('textarea');
+      t.value = text; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(t);
+      if (ok) { done(); } else { fail(); }
+    } catch (err) { fail(); }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); } else { fallback(); }
 });

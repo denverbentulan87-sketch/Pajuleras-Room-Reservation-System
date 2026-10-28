@@ -44,6 +44,7 @@ if (is_post()) {
     if (!in_array($OLD['gender'], ['male', 'female'], true)) $errors[] = 'Choose the tenant\'s gender (needed for male-only and female-only rooms).';
     if (!valid_phone($phone)) $errors[] = 'Enter a valid contact number (digits only, for example 09123456789).';
     if ($OLD['email'] !== '' && !valid_email($OLD['email'])) $errors[] = 'The email address does not look right.';
+    if ($OLD['messenger'] !== '' && messenger_handle($OLD['messenger']) === null) $errors[] = 'That Messenger name or link cannot open a chat. Use the Facebook username (for example juan.delacruz or facebook.com/juan.delacruz). Links like profile.php?id=123 do not work.';
     if ($OLD['birth_date'] !== '' && (!valid_date($OLD['birth_date']) || $OLD['birth_date'] > today())) $errors[] = 'Enter a valid birth date (not in the future).';
     if (!in_array($OLD['occupation'], ['student', 'employee', 'other'], true)) $errors[] = 'Choose student, employee, or other.';
     if ($gphone !== '' && !valid_phone($gphone)) $errors[] = 'The guardian / emergency contact number is not valid.';
@@ -56,7 +57,7 @@ if (is_post()) {
     }
 
     if (!$errors) {
-        $vals = [$OLD['full_name'], $OLD['gender'], $OLD['birth_date'] ?: null, $phone, $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null, $OLD['messenger'] ?: null,
+        $vals = [$OLD['full_name'], $OLD['gender'], $OLD['birth_date'] ?: null, $phone, $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null, messenger_handle($OLD['messenger']),
                  $OLD['home_address'] ?: null, $OLD['occupation'], $OLD['school_or_workplace'] ?: null, $OLD['id_presented'] ?: null,
                  $OLD['guardian_name'] ?: null, $gphone ?: null, $OLD['notes'] ?: null, $OLD['status']];
         if ($tenant) {

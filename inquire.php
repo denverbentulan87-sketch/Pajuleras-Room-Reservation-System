@@ -93,7 +93,7 @@ if (is_post()) {
             $email = $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null;
             // 1. register the person as a tenant from what they typed (or match the existing tenant)
             $tenantId = inquiry_register_tenant(['name' => $OLD['name'], 'gender' => $OLD['gender'], 'contact_no' => $phone, 'email' => $email,
-                                                 'occupation' => $OLD['occupation'], 'school' => $OLD['school'], 'messenger' => $OLD['messenger']]);
+                                                 'occupation' => $OLD['occupation'], 'school' => $OLD['school'], 'messenger' => (string)messenger_handle($OLD['messenger'])]);
             // 2. record the inquiry
             q("INSERT INTO inquiries (ref_code, name, contact_no, email, room_id, preferred_move_in, occupation, gender, school_or_workplace, tenant_id, consent_at, subject, status, admin_unread, ip)
                VALUES (?,?,?,?,?,?,?,?,?,?, NOW(), ?, 'new', 1, ?)",

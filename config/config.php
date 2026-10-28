@@ -50,7 +50,7 @@ return [
         'user'       => 'pajulerasbh@gmail.com',          // your full e-mail address
         'pass'       => 'etzknmxomwdtjtay',          // for Gmail use an App Password, never your normal password
         'from_email' => 'pajulerasbh@gmail.com',          // defaults to 'user'
-        'from_name'  => 'PajulerasBH',          // defaults to the boarding house name
+        'from_name'  => 'Pajuleras Boarding House System',          // defaults to the boarding house name
         'verify_tls' => true,
     ],
 

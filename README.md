@@ -150,7 +150,7 @@ uploads/      room photos uploaded by the landlord
 2. **Reserve and hold**: confirming a reservation holds the bed for **N days** (Settings > Rates, requirements & rules > *How reserving works*) while the **reservation fee** (or the advance) is paid. The tenant is told the deadline and how to pay.
 3. **Pay to secure**: paying the reservation amount, in cash or by GCash, **confirms the reservation by itself**. If the hold runs out unpaid, the bed is **released automatically** (even before the cleanup runs, beds are counted as free) and the tenant is told.
 4. **Move in**: the check-in pop-up shows what is owed (deposit + rest of the first month) and records the room condition. Checking in with an unpaid balance needs an explicit tick.
-5. **Monthly rent** on the move-in date, with reminders (e-mail, or Messenger by one tap).
+5. **Monthly rent** on the move-in date, with reminders: sent by e-mail automatically, or as a Messenger message that the landlord sends with one tap.
 6. **Move-out notice** (default 30 days; a shorter notice needs an explicit tick), then **check-out with deposit settlement**: unpaid rent can be taken from the deposit, damages are deducted with a written reason, the refund is calculated live and recorded with a receipt, and the tenant gets a move-out summary. The books always end at zero owed and zero refundable.
 7. **Cancelling** follows the reservation-fee policy (kept or refundable) and you can change the refund amount; refunds can never exceed what was received.
 
@@ -158,4 +158,11 @@ uploads/      room photos uploaded by the landlord
 * **No double saving**: payment forms are single-use, so a double click or a refresh cannot record a payment twice.
 * **Tenants pay by GCash with less guessing**: "Find what I owe" shows their reservation and what is due and fills in the type and amount. They can also check a report's status with its code.
 * **Fewer needless requests**: the search waits, cancels old lookups and remembers results; pop-up forms load only when opened; the public pages no longer do heavy availability work on every page view; pending reservations are not chased with reminders; and the same by-hand message is never queued twice.
-* **SMS has been removed.** Reminders and receipts go by **e-mail** (automatic once set up in `config/config.php`) or **Messenger** (one tap from Admin > Payment reminders, because Facebook does not allow automatic messages). Tenants can give their Messenger name when they inquire.
+* **SMS has been removed.** Reminders and receipts go by **e-mail** (automatic once set up in `config/config.php`). **Messenger is not automatic**: the system has no Messenger account, and Facebook does not allow programs to send reminders to tenants without an approved app and the tenant messaging your Page first. Instead, every place that needs a message has a **Messenger** button (the reminders list, each reservation page, and the by-hand list): one tap opens the tenant's chat and copies the right message, you paste it and press send from your own Facebook account. Facebook ignores pre-filled text in these links, so the paste step cannot be skipped. Tenants can give their Messenger name when they inquire.
+
+### Testing Messenger
+Settings > Reminders & notifications > **Test Messenger with**: type a friend's Messenger name or Facebook link (you cannot message yourself) and press **Prepare Messenger test**. Then open Admin > Payment reminders > "To send by hand" and tap **Messenger**: it opens the chat and copies the message, you paste and send, then press "Mark as sent". Links like `profile.php?id=123` cannot open a chat, so use the Facebook username.
+
+### Facebook on the website
+Settings > Boarding house > **Facebook page link** (for example `facebook.com/YourPageName`) now shows on the website: a "Message us on Messenger" line in the contact section and the footer, and a Messenger button in the chat when someone asks how to contact you. With a `profile.php?id=...` link it shows "Visit our Facebook page" instead, because that kind of link cannot open a chat. Leave it empty to show nothing.
+

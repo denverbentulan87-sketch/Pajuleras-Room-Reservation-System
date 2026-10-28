@@ -357,6 +357,7 @@
         var b;
         if (a.type === 'link' && safeHref(a.href || '')) {
           b = document.createElement('a'); b.href = a.href;
+          if (/^https?:/.test(a.href) && a.href.indexOf(window.location.origin) !== 0) { b.target = '_blank'; b.rel = 'noopener noreferrer'; }
         } else {
           b = document.createElement('button'); b.type = 'button';
           b.addEventListener('click', function () { runAction(a); });

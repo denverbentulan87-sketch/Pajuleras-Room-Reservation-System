@@ -222,7 +222,7 @@ public_header(setting('site_name', 'Pajuleras Boarding House'), 'home');
       <ul class="pay-trust">
         <li><?= icon('shield') ?><span>Every report gets a code you can check any time</span></li>
         <li><?= icon('check') ?><span>Nothing is recorded until the landlord confirms it</span></li>
-        <li><?= icon('bell') ?><span>You are reminded by e-mail or Messenger before rent is due</span></li>
+        <li><?= icon('bell') ?><span>You get an e-mail reminder before rent is due, or a Messenger message from the landlord</span></li>
       </ul>
     </div>
   </div>
@@ -302,6 +302,10 @@ public_header(setting('site_name', 'Pajuleras Boarding House'), 'home');
         <a class="icon-btn icon-btn-soft tip" data-tip="Write an email" href="mailto:<?= e(setting('email')) ?>"><?= icon('mail') ?><span class="sr-only">Write an email</span></a></li>
       <?php endif; ?>
       <li><span class="icon-badge"><?= icon('pin') ?></span><span class="cl-text"><small>Find us</small><strong><?= e(setting('address')) ?></strong></span></li>
+      <?php $fb = house_facebook(); if ($fb['page'] !== ''): ?>
+      <li><span class="icon-badge"><?= icon('message') ?></span><span class="cl-text"><small>Facebook</small><strong><?= $fb['messenger'] ? 'Message us on Messenger' : 'Visit our Facebook page' ?></strong></span>
+        <a class="icon-btn icon-btn-soft tip" data-tip="<?= $fb['messenger'] ? 'Open Messenger' : 'Open our Facebook page' ?>" href="<?= e($fb['messenger'] ?? $fb['page']) ?>" target="_blank" rel="noopener"><?= icon('message') ?><span class="sr-only"><?= $fb['messenger'] ? 'Message us on Messenger' : 'Open our Facebook page' ?></span></a></li>
+      <?php endif; ?>
       <?php if (setting('contact_hours') !== ''): ?>
       <li><span class="icon-badge"><?= icon('clock') ?></span><span class="cl-text"><small>Messages answered</small><strong><?= e(setting('contact_hours')) ?></strong></span></li>
       <?php endif; ?>

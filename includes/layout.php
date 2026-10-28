@@ -152,6 +152,7 @@ function public_footer(): void
         <?php if (setting('phone') !== ''): ?><li><?= icon('phone') ?><span><?= e(setting('phone')) ?></span></li><?php endif; ?>
         <?php if (setting('email') !== ''): ?><li><?= icon('mail') ?><span><?= e(setting('email')) ?></span></li><?php endif; ?>
         <?php if (setting('contact_hours') !== ''): ?><li><?= icon('clock') ?><span><?= e(setting('contact_hours')) ?></span></li><?php endif; ?>
+        <?php $fbHouse = house_facebook(); if ($fbHouse['page'] !== ''): ?><li><?= icon('message') ?><span><a href="<?= e($fbHouse['messenger'] ?? $fbHouse['page']) ?>" target="_blank" rel="noopener"><?= $fbHouse['messenger'] ? 'Message us on Messenger' : 'Our Facebook page' ?></a></span></li><?php endif; ?>
       </ul>
     </div>
   </div>

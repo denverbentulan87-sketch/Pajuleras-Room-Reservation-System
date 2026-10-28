@@ -117,7 +117,7 @@ function render_inquiry_modal(): void
             </label>
             <label for="iq-school">School or workplace <span class="opt">(optional)</span><input id="iq-school" type="text" name="school" maxlength="150" autocomplete="organization"></label>
           </div>
-          <label for="iq-msgr">Messenger name <span class="opt">(optional, for payment messages)</span><input id="iq-msgr" type="text" name="messenger" maxlength="120" placeholder="e.g. juan.delacruz" autocomplete="off"></label>
+          <label for="iq-msgr">Messenger name <span class="opt">(optional, so the landlord can message you)</span><input id="iq-msgr" type="text" name="messenger" maxlength="120" placeholder="e.g. juan.delacruz" autocomplete="off"></label>
           <div class="row-2">
             <label for="iq-room">Room you like
               <select id="iq-room" name="room_id"><option value="">Not sure yet</option>

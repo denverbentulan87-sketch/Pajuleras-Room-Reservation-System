@@ -337,7 +337,7 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
 
         case 'due':
             $t = "**When rent is due:** one month after you move in, then every month on the same day. If you moved in on the 5th, your rent is due every 5th.";
-            $t .= "\n\n**Reminders:** you get a message by e-mail or Messenger a few days before the due date, on the due date, and again if a payment is missing or only partly paid. It is never sent twice for the same due date.";
+            $t .= "\n\n**Reminders:** you get a reminder by e-mail, or a Messenger message from the landlord if you shared your Messenger name, a few days before the due date, on the due date, and again if a payment is missing or only partly paid. It is never sent twice for the same due date.";
             $t .= "\n\nIf you missed a payment, the unpaid amount stays on your account as a balance until it is paid." . ($kb['gcash'] !== '' ? ' You can pay by cash or GCash.' : '');
             return $out($t, [['type' => 'gcash', 'label' => 'Pay with GCash'], chat_act_link('Check my inquiry', 'track.php')], ['How to pay', 'Contact the landlord']);
 
@@ -365,7 +365,12 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
 
         case 'contact':
             $c = chat_contact_text($kb);
-            return $out($c !== '' ? "**Contact the landlord:**\n" . $c : 'Please use the inquiry form and the landlord will reply.', [chat_act_inquiry('Send an inquiry')], ['Location', 'Available rooms']);
+            $fbl = house_facebook();
+            $acts = [chat_act_inquiry('Send an inquiry')];
+            if ($fbl['messenger']) {
+                $acts[] = ['type' => 'link', 'label' => 'Message us on Messenger', 'href' => $fbl['messenger']];
+            }
+            return $out($c !== '' ? "**Contact the landlord:**\n" . $c : 'Please use the inquiry form and the landlord will reply.', $acts, ['Location', 'Available rooms']);
 
         case 'track':
             return $out("After you send an inquiry you get a **code**. Open **Check my inquiry**, enter the code and the contact number you used, and you can read the landlord's reply and send follow-up messages.", [chat_act_link('Check my inquiry', 'track.php'), chat_act_inquiry('Send a new inquiry')], ['Contact the landlord']);
@@ -374,7 +379,7 @@ function chatbot_answer(string $raw, array $kb, bool $probe): array
         case 'movein':
             $life = $kb['life'] ?? ['fee' => 0, 'hold_days' => 3, 'notice_days' => 30, 'fee_refundable' => false];
             $t = "**How reserving works:**\n1. Send an inquiry. You get an instant answer: confirmed if the room has an open bed, or not confirmed with other rooms that do\n2. The landlord holds your bed for **" . (int)$life['hold_days'] . " days** while you pay the reservation " . ($life['fee'] > 0 ? 'fee of **' . money($life['fee']) . '**' : 'amount')
-               . "\n3. Pay by cash" . ($kb['gcash'] !== '' ? ' or GCash' : '') . ". Paying confirms your reservation. If it is not paid in time, the bed is released\n4. Move in: pay the deposit and the rest of the first month, then we check the room together\n5. Pay rent every month on your move-in date. We remind you by e-mail or Messenger\n6. Move out with " . (int)$life['notice_days'] . " days' notice. The deposit comes back minus unpaid rent or damages";
+               . "\n3. Pay by cash" . ($kb['gcash'] !== '' ? ' or GCash' : '') . ". Paying confirms your reservation. If it is not paid in time, the bed is released\n4. Move in: pay the deposit and the rest of the first month, then we check the room together\n5. Pay rent every month on your move-in date. We remind you by e-mail, or the landlord messages you on Messenger\n6. Move out with " . (int)$life['notice_days'] . " days' notice. The deposit comes back minus unpaid rent or damages";
             return $out($t, [chat_act_inquiry('Send an inquiry'), chat_act_link('Check my inquiry', 'track.php')], ['Requirements', 'How to pay', 'Rates']);
 
         case 'amen':

@@ -447,3 +447,7 @@ label.is-required > span.reason-note::after { content: " *"; color: var(--bad, #
 .rules-box { border: 1.5px solid #cfe0d6; border-radius: 16px; padding: 1rem 1.2rem 1.1rem; margin: 0 0 1.2rem; background: #f6faf7; display: grid; gap: .9rem; }
 .rules-box legend { padding: 0 .5rem; font-weight: 700; font-size: 1.05rem; }
 .rules-box .hint { display: block; font-weight: 400; }
+
+.btn-messenger { border-color: #0084ff; color: #0066cc; background: #eef6ff; }
+.btn-messenger:hover { background: #0084ff; color: #fff; border-color: #0084ff; }
+.btn-messenger .ic { width: 1rem; height: 1rem; margin-right: .35rem; }

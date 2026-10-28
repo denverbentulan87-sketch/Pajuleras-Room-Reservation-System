@@ -226,6 +226,52 @@ function notify_tenant(?array $tenant, string $type, array $msg, array $opts = [
     return ['status' => 'manual', 'channel' => 'manual', 'note' => 'Ready to send by hand in Admin > Reminders.'];
 }
 
+/** "juan.delacruz", "facebook.com/juan.delacruz" or "https://m.me/juan.delacruz" -> "juan.delacruz" (null when it cannot be used) */
+function messenger_handle(string $raw): ?string
+{
+    $m = trim($raw);
+    if ($m === '') {
+        return null;
+    }
+    // accept links with or without "https://" and "www."
+    $m = preg_replace('#^(https?://)?(www\.|m\.|web\.)?(m\.me|facebook\.com|fb\.com|messenger\.com(/t)?)/#i', '', $m) ?? $m;
+    $m = trim(explode('#', explode('?', $m)[0])[0], '/@ ');
+    // pages that are not a username (numeric profile links, groups, shares...) cannot open a chat
+    $notAUsername = ['profile.php', 'home.php', 'groups', 'pages', 'people', 'watch', 'marketplace', 'events', 'share', 'sharer.php', 'login', 'photo', 'photo.php', 'story.php', 'permalink.php'];
+    if (!preg_match('/^[A-Za-z0-9.\-_]{3,80}$/', $m) || ctype_digit($m) || in_array(strtolower($m), $notAUsername, true)) {
+        return null;
+    }
+    return $m;
+}
+
+/**
+ * The boarding house's own Facebook links from Settings.
+ * @return array{page:string, messenger:?string} 'messenger' is a m.me link visitors can use to message you first
+ */
+function house_facebook(): array
+{
+    $raw = trim(setting('facebook'));
+    if ($raw === '') {
+        return ['page' => '', 'messenger' => null];
+    }
+    $page = preg_match('#^https?://#i', $raw) ? $raw : 'https://' . $raw;
+    $h = messenger_handle($raw);
+    return ['page' => $page, 'messenger' => $h !== null ? 'https://m.me/' . $h : null];
+}
+
+/**
+ * "Messenger" button: opens the tenant's chat and copies the message. Messenger cannot be filled in for us
+ * (Facebook ignores any text in the link), so the landlord pastes it and presses send.
+ */
+function messenger_button(?array $tenant, string $body, string $label = 'Messenger'): string
+{
+    $h = messenger_handle((string)($tenant['messenger'] ?? ''));
+    if ($h === null) {
+        return '<span class="muted small" title="Add the tenant\'s Messenger name in their record">No Messenger name</span>';
+    }
+    return '<a class="btn btn-sm btn-messenger" href="https://m.me/' . e($h) . '" target="_blank" rel="noopener" data-copy-text="' . e($body) . '">' . icon('message') . '<span>' . e($label) . '</span></a>';
+}
+
 /** One-tap links for a manual notification row. */
 function manual_links(array $n, ?array $tenant): array
 {
@@ -239,13 +285,9 @@ function manual_links(array $n, ?array $tenant): array
     if ($mail !== '' && valid_email($mail)) {
         $links[] = ['label' => 'E-mail', 'href' => 'mailto:' . $mail . '?subject=' . rawurlencode((string)$n['subject']) . '&body=' . rawurlencode($body), 'icon' => 'mail'];
     }
-    $m = trim((string)($tenant['messenger'] ?? ''));
-    if ($m !== '') {
-        $m = preg_replace('#^https?://(www\.)?(m\.me|facebook\.com|messenger\.com)/#i', '', $m) ?? $m;
-        $m = trim($m, '/@ ');
-        if (preg_match('/^[A-Za-z0-9.\-_]{3,80}$/', $m)) {
-            $links[] = ['label' => 'Messenger', 'href' => 'https://m.me/' . $m, 'icon' => 'message', 'external' => true, 'copy' => true];
-        }
+    $m = messenger_handle((string)($tenant['messenger'] ?? ''));
+    if ($m !== null) {
+        $links[] = ['label' => 'Messenger', 'href' => 'https://m.me/' . $m, 'icon' => 'message', 'external' => true, 'copy' => true];
     }
     return $links;
 }

@@ -28,6 +28,9 @@ if (is_post()) {
         if ($v['site_name'] === '') $errors[] = 'The boarding house name is required.';
         if ($v['landlord_name'] === '') $errors[] = 'The landlord name is required (it appears on receipts).';
         if ($v['email'] !== '' && !valid_email($v['email'])) $errors[] = 'The email address does not look right.';
+        if ($v['facebook'] !== '' && !preg_match('#^(https?://)?([a-z0-9-]+\.)?(facebook\.com|fb\.com|m\.me)/[^\s]+$#i', $v['facebook'])) {
+            $errors[] = 'The Facebook page link should look like facebook.com/YourPageName.';
+        }
         $newHouse = null;
         if (!$errors) {
             try {
@@ -91,7 +94,7 @@ if (is_post()) {
         }
     } elseif ($form === 'notifytest' && (int)$admin['must_change_password'] !== 1) {
         $tab = 'notify';
-        $kind = post_str('kind', 6);
+        $kind = post_str('kind', 12);
         $to = post_str('to', 150);
         if ($kind === 'email') {
             $err = null;
@@ -101,6 +104,18 @@ if (is_post()) {
                 flash('success', 'Test e-mail sent to ' . $to . '. Check the inbox (and the spam folder).');
                 redirect('admin/settings.php?tab=notify');
             } else $errors[] = 'The test e-mail failed. ' . $err;
+        } elseif ($kind === 'messenger') {
+            $handle = messenger_handle(post_str('to_messenger', 150));
+            if ($handle === null) {
+                $errors[] = 'Type the Messenger name or Facebook link of the person to test with, for example juan.delacruz or facebook.com/juan.delacruz. (Links that look like profile.php?id=123 do not work: ask for their username.)';
+            } else {
+                $site = setting('site_name', 'your boarding house');
+                notification_log(['type' => 'test', 'channel' => 'manual', 'recipient' => $handle, 'subject' => 'Messenger test',
+                    'body' => "Hi! This is a test message from $site. If you can read this in Messenger, payment reminders can reach tenants this way. There is nothing you need to do. Thank you!",
+                    'status' => 'manual']);
+                flash('success', 'Test message prepared. Now open "To send by hand" and tap Messenger.');
+                redirect('admin/reminders.php#by-hand');
+            }
         }
     } elseif ($form === 'account') {
         $tab = 'account';
@@ -182,7 +197,7 @@ $must = (int)$admin['must_change_password'] === 1;
     </div>
     <div class="row-2">
       <label>Hours you answer messages<input type="text" name="contact_hours" value="<?= e($OLD['contact_hours'] ?? '') ?>" maxlength="120"></label>
-      <label>Facebook page link <span class="opt">(optional)</span><input type="text" name="facebook" value="<?= e($OLD['facebook'] ?? '') ?>" maxlength="200"></label>
+      <label>Facebook page link <span class="opt">(optional)</span><input type="text" name="facebook" value="<?= e($OLD['facebook'] ?? '') ?>" maxlength="200" placeholder="facebook.com/YourPageName"><span class="hint">Shown on the website with a "Message us on Messenger" button, so people can reach you first. Use your page's username link, not a profile.php?id=... link, for the Messenger button to work.</span></label>
     </div>
     <label>About the boarding house (shown on the home page)<textarea name="about_text" rows="5" maxlength="1500"><?= e($OLD['about_text'] ?? '') ?></textarea></label>
     <div class="photo-field">
@@ -239,13 +254,20 @@ $must = (int)$admin['must_change_password'] === 1;
   <h3 class="form-sub">How messages are sent</h3>
   <div class="chan-row">
     <div class="chan <?= $ch['email'] ? 'chan-on' : 'chan-off' ?>"><strong>E-mail</strong><span><?= $ch['email'] ? 'Set up' : 'Not set up' ?></span></div>
-    <div class="chan chan-hand"><strong>Messenger</strong><span>One tap from Admin &gt; Payment reminders</span></div>
+    <div class="chan chan-hand"><strong>Messenger</strong><span>One tap from Admin &gt; Payment reminders. You send it from your own Facebook account.</span></div>
   </div>
   <form class="form test-form" method="post" novalidate>
     <?= csrf_field() ?><input type="hidden" name="form" value="notifytest">
     <div class="row-2">
       <label>Send a test to<input type="text" name="to" placeholder="your e-mail address" maxlength="150"></label>
       <div class="form-actions"><button class="btn" type="submit" name="kind" value="email"<?= $ch['email'] ? '' : ' disabled' ?>>Test e-mail</button></div>
+    </div>
+  </form>
+  <form class="form test-form" method="post" novalidate>
+    <?= csrf_field() ?><input type="hidden" name="form" value="notifytest">
+    <div class="row-2">
+      <label>Test Messenger with<input type="text" name="to_messenger" placeholder="a friend's Messenger name or Facebook link" maxlength="150"><span class="hint">You cannot message yourself, so use a friend, a family member or another account of yours.</span></label>
+      <div class="form-actions"><button class="btn" type="submit" name="kind" value="messenger">Prepare Messenger test</button></div>
     </div>
   </form>
   <details class="howto"><summary>How to set up e-mail and Messenger</summary>

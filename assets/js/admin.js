@@ -29,6 +29,7 @@
     toastBox.appendChild(t);
     window.setTimeout(function () { t.classList.add('out'); window.setTimeout(function () { t.remove(); }, 400); }, type === 'error' ? 9000 : 5500);
   }
+  window.pbhToast = toast;
   function queueToasts(list) {
     try {
       var q = JSON.parse(window.sessionStorage.getItem('pbh_toasts') || '[]').concat(list);

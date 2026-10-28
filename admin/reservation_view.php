@@ -3,7 +3,7 @@ require __DIR__ . '/../includes/bootstrap.php';
 require_admin();
 
 $id = get_int('id');
-$v = $id ? fetch_one("SELECT v.*, t.full_name, t.tenant_code, t.contact_no, t.email, t.gender, r.room_no, r.room_name, r.capacity, r.monthly_rate AS room_rate
+$v = $id ? fetch_one("SELECT v.*, t.full_name, t.tenant_code, t.contact_no, t.email, t.messenger, t.gender, r.room_no, r.room_name, r.capacity, r.monthly_rate AS room_rate
                         FROM reservations v JOIN tenants t ON t.id = v.tenant_id JOIN rooms r ON r.id = v.room_id WHERE v.id = ?", [$id]) : null;
 if (!$v) {
     abort(404, 'That reservation does not exist.');
@@ -49,9 +49,16 @@ $cancelDefault = (!$ls['fee_refundable'] && $ls['fee'] > 0) ? max(0.0, round($he
 </section>
 
 <?php if (in_array($st, ['pending', 'confirmed', 'checked_in'], true)): ?>
+<?php
+$msgState = reminder_state($v, $f, reminder_settings());
+$msgBody = ($msgState && $msgState['state'] !== 'ok')
+    ? reminder_message(['res' => $v, 'st' => $msgState, 'fin' => $f, 'tenant' => ['full_name' => $v['full_name']]])['body']
+    : 'Hi ' . first_name((string)$v['full_name']) . ",\n\nThis is " . setting('site_name', 'the boarding house') . ' about your reservation ' . $v['reservation_no'] . ' for Room ' . $v['room_no'] . '.';
+?>
 <section class="panel actions-panel">
   <h2>What would you like to do?</h2>
   <div class="action-row">
+    <?= messenger_button($v, $msgBody, 'Message on Messenger') ?>
     <?php if ($st === 'pending'): ?>
       <form method="post" action="<?= e(url('admin/reservation_action.php')) ?>">
         <?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="confirm">
