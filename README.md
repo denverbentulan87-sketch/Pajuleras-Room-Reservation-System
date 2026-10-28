@@ -1,7 +1,6 @@
 # Pajuleras Boarding House Management System
 
-A PHP + MySQL website for Pajuleras Boarding House (Poblacion, Inabanga, Bohol), built from the
-group's documentation (Group 7, IS105). It has two sides:
+A PHP + MySQL website for Pajuleras Boarding House (Poblacion, Inabanga, Bohol)
 
 * **Public website** (customers and tenants, no login): see rooms and live bed availability,
   read rates, requirements and house rules, **send an inquiry**, and later **read the landlord's
