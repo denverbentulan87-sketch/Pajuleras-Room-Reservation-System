@@ -92,8 +92,15 @@ if (is_post()) {
             $ref = new_ref_code();
             $email = $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null;
             // 1. register the person as a tenant from what they typed (or match the existing tenant)
-            $tenantId = inquiry_register_tenant(['name' => $OLD['name'], 'gender' => $OLD['gender'], 'contact_no' => $phone, 'email' => $email,
-                                                 'occupation' => $OLD['occupation'], 'school' => $OLD['school'], 'messenger' => (string)messenger_handle($OLD['messenger'])]);
+            $tenantId = inquiry_register_tenant([
+                'name'       => $OLD['name'],
+                'gender'     => $OLD['gender'],
+                'contact_no' => $phone,
+                'email'      => $email,
+                'occupation' => $OLD['occupation'],
+                'school'     => $OLD['school'],
+                'messenger'  => trim($OLD['messenger']),
+            ]);
             // 2. record the inquiry
             q("INSERT INTO inquiries (ref_code, name, contact_no, email, room_id, preferred_move_in, occupation, gender, school_or_workplace, tenant_id, consent_at, subject, status, admin_unread, ip)
                VALUES (?,?,?,?,?,?,?,?,?,?, NOW(), ?, 'new', 1, ?)",
@@ -178,7 +185,7 @@ public_header('Send an inquiry', 'inquire', 'Ask the landlord about rooms, rates
       <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
       <div class="row-2">
-        <label>Your full name <span class="req">*</span>
+        <label>Fullname <span class="req">*</span>
           <input type="text" name="name" value="<?= e(old('name')) ?>" maxlength="120" required autocomplete="name">
         </label>
         <label>Contact number <span class="req">*</span>
@@ -186,7 +193,7 @@ public_header('Send an inquiry', 'inquire', 'Ask the landlord about rooms, rates
         </label>
       </div>
       <div class="row-2">
-        <label>Email <span class="opt">(optional)</span>
+        <label>Email <span class="req">*</span>
           <input type="email" name="email" value="<?= e(old('email')) ?>" maxlength="150" autocomplete="email">
         </label>
         <label>I am a

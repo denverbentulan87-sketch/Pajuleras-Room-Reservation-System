@@ -27,9 +27,7 @@ page_head($v['reservation_no'], $v['full_name'] . ', Room ' . $v['room_no'],
 <?php
 $stage = reservation_stage($v, $f);
 $ls = lifecycle_settings();
-if ($st === 'checked_in') {
-    $sim = checkout_simulation($v, today());
-}
+$sim = checkout_simulation($v, today());
 if ($st === 'confirmed') {
     $owedMoveIn = compute_financials(array_merge($v, ['status' => 'checked_in', 'checked_in_at' => date('Y-m-d H:i:s')]), payment_totals([$id])[$id] ?? [])['balance'];
 }

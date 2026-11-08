@@ -302,7 +302,7 @@ public_header(setting('site_name', 'Pajuleras Boarding House'), 'home');
         <a class="icon-btn icon-btn-soft tip" data-tip="Write an email" href="mailto:<?= e(setting('email')) ?>"><?= icon('mail') ?><span class="sr-only">Write an email</span></a></li>
       <?php endif; ?>
       <li><span class="icon-badge"><?= icon('pin') ?></span><span class="cl-text"><small>Find us</small><strong><?= e(setting('address')) ?></strong></span></li>
-      <?php $fb = house_facebook(); if ($fb['page'] !== ''): ?>
+      <?php $fb = function_exists('house_facebook') ? house_facebook() : ['page' => '', 'messenger' => '']; if ($fb['page'] !== ''): ?>
       <li><span class="icon-badge"><?= icon('message') ?></span><span class="cl-text"><small>Facebook</small><strong><?= $fb['messenger'] ? 'Message us on Messenger' : 'Visit our Facebook page' ?></strong></span>
         <a class="icon-btn icon-btn-soft tip" data-tip="<?= $fb['messenger'] ? 'Open Messenger' : 'Open our Facebook page' ?>" href="<?= e($fb['messenger'] ?? $fb['page']) ?>" target="_blank" rel="noopener"><?= icon('message') ?><span class="sr-only"><?= $fb['messenger'] ? 'Message us on Messenger' : 'Open our Facebook page' ?></span></a></li>
       <?php endif; ?>
