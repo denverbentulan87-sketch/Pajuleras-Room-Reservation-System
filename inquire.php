@@ -185,7 +185,7 @@ public_header('Send an inquiry', 'inquire', 'Ask the landlord about rooms, rates
       <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
       <div class="row-2">
-        <label>Fullname <span class="req">*</span>
+        <label>Full Name <span class="req">*</span>
           <input type="text" name="name" value="<?= e(old('name')) ?>" maxlength="120" required autocomplete="name">
         </label>
         <label>Contact number <span class="req">*</span>

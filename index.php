@@ -143,7 +143,7 @@ public_header(setting('site_name', 'Pajuleras Boarding House'), 'home');
     <div class="board" id="rooms">
       <div class="board-head" data-reveal>
         <div>
-          <h3>Room board</h3>
+          <h3>Room Board</h3>
           <p class="muted">Updated from the landlord's records, so you see what is free today.</p>
         </div>
         <div class="board-tools">
