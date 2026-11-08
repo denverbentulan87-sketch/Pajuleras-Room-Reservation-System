@@ -20,7 +20,7 @@ XAMPP (current version) already includes everything.
 3. Open **http://localhost/phpmyadmin** > **Import**:
    1. choose `database/01_schema.sql` > **Go** (creates database `pajuleras_bh`, tables, the admin account)
    2. *(optional demo data)* choose `database/02_sample_data.sql` > **Go**
-4. Open **http://localhost/pajuleras_bh/**
+4. Open **http://localhost/Pajuleras-Room-Reservation-System/**
 5. Landlord sign in: on the landing page click the **Landlord login** button in the footer (it is also in the mobile menu). It opens a sign-in pop-up.
    There is no separate login page.
    * username `admin`, password `Pajuleras@2026`
