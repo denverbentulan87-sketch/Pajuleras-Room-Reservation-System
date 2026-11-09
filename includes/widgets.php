@@ -63,9 +63,16 @@ function gcash_send_card(): string
     if ($no === '') {
         return '<div class="gc-card gc-card-empty"><strong>GCash number not set yet</strong><span>Please ask the landlord for the GCash number first.</span></div>';
     }
-    return '<div class="gc-card"><div><span class="gc-label">Send your payment to</span><strong class="gc-no" data-copy-src>' . e($no) . '</strong>'
+    $qr = gcash_qr_url();
+    $card = '<div class="gc-card"><div><span class="gc-label">Send your payment to</span><strong class="gc-no" data-copy-src>' . e($no) . '</strong>'
          . ($name !== '' ? '<span class="gc-name">' . e($name) . '</span>' : '') . '</div>'
          . '<button type="button" class="btn btn-sm gc-copy" data-copy="' . e($no) . '" aria-label="Copy GCash number">' . icon('copy') . '<span>Copy</span></button></div>';
+    if ($qr === '') {
+        return $card;
+    }
+    return '<div class="gc-wrap">' . $card
+         . '<figure class="gc-qr"><a href="' . e($qr) . '" target="_blank" rel="noopener"><img src="' . e($qr) . '" alt="GCash QR code for ' . e($name !== '' ? $name : 'the boarding house') . '" width="220" height="220" loading="lazy"></a>'
+         . '<figcaption><strong>Or scan to pay</strong><span>Open GCash, tap Pay QR, and scan this code. Then report your payment below.</span></figcaption></figure></div>';
 }
 
 function render_inquiry_modal(): void
@@ -106,7 +113,7 @@ function render_inquiry_modal(): void
             <label for="iq-tel">Contact number <span class="req">*</span><input id="iq-tel" type="tel" name="contact_no" maxlength="30" required inputmode="tel" placeholder="09123456789" autocomplete="tel"></label>
           </div>
           <div class="row-2">
-            <label for="iq-mail">Email <span class="opt">(optional)</span><input id="iq-mail" type="email" name="email" maxlength="150" autocomplete="email"></label>
+            <label for="iq-mail">Email <span class="req">*</span><input id="iq-mail" type="email" name="email" maxlength="150" required autocomplete="email"></label>
             <label for="iq-occ">I am a
               <select id="iq-occ" name="occupation"><option value="">Choose one</option><option value="student">Student</option><option value="employee">Employee</option><option value="other">Other</option></select>
             </label>
@@ -139,7 +146,7 @@ function render_inquiry_modal(): void
           <span class="pbh-check" data-auto-icon><?= icon('check') ?></span>
           <h2>Your inquiry was sent</h2>
           <div class="auto-reply" data-auto hidden><strong data-auto-title></strong><div data-auto-text></div></div>
-          <p class="muted">The landlord will read your message and reply personally.</p>
+          <p class="muted">The landlord will read your message and reply personally. A copy of this reply is also sent to your e-mail.</p>
           <div class="code-box" data-code-box><span>Your inquiry code</span><strong class="code" data-code></strong>
             <button type="button" class="btn btn-sm" data-copy-code><?= icon('copy') ?><span>Copy code</span></button></div>
           <p><strong>Write this code down.</strong> Use it with your contact number to read the reply.</p>

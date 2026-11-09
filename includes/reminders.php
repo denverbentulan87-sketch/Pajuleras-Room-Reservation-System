@@ -24,6 +24,7 @@ function reminder_settings(): array
         'before'  => max(0, min(14, (int)setting('reminder_days_before', '3'))),
         'repeat'  => max(1, min(30, (int)setting('reminder_repeat_days', '3'))),
         'max'     => max(1, min(20, (int)setting('reminder_max', '6'))),
+        'movein'  => max(0, min(30, (int)setting('movein_days_before', '7'))),   // "your move-in date is coming up" notice
     ];
 }
 
@@ -104,6 +105,24 @@ function reminder_state(array $res, array $fin, array $cfg): ?array
     return $out;
 }
 
+/**
+ * "Your move-in date is coming up": for a reservation that has not moved in yet (pending or confirmed).
+ * Sent once when the date is within the notice window (Settings > Reminders, default 7 days) and once on the day.
+ * @return array|null
+ */
+function movein_state(array $res, array $fin, array $cfg): ?array
+{
+    if (!in_array($res['status'], ['pending', 'confirmed'], true) || empty($res['move_in_date'])) {
+        return null;
+    }
+    $until = days_between(today(), (string)$res['move_in_date']);
+    if ($until < 0 || $until > $cfg['movein']) {
+        return null;
+    }
+    return ['state' => $until === 0 ? 'movein_today' : 'movein_soon', 'due' => (string)$res['move_in_date'], 'days' => -$until,
+            'amount' => (float)$fin['balance'], 'paid_on_item' => (float)$fin['paid'], 'label' => 'Move-in'];
+}
+
 /** The (once only) key of the reminder that is due now, or null. */
 function reminder_key(array $res, array $st, array $cfg): ?string
 {
@@ -117,6 +136,10 @@ function reminder_key(array $res, array $st, array $cfg): ?string
             return "res{$id}:today:{$st['due']}";
         case 'upcoming':
             return "res{$id}:pre:{$st['due']}";
+        case 'movein_soon':
+            return "res{$id}:movein:pre:{$st['due']}";
+        case 'movein_today':
+            return "res{$id}:movein:today:{$st['due']}";
         case 'advance':
             if (!empty($st['hold'])) {
                 // a held bed: one warning in the last 24 hours before the hold ends
@@ -145,21 +168,24 @@ function reminder_overview(): array
     $out = [];
     foreach ($rows as $v) {
         $fin = compute_financials($v, $totals[(int)$v['id']] ?? []);
+        $tenant = ['id' => $v['t_id'], 'full_name' => $v['full_name'], 'contact_no' => $v['contact_no'], 'email' => $v['email'], 'messenger' => $v['messenger']];
         $st = reminder_state($v, $fin, $cfg);
-        if ($st === null || $st['state'] === 'ok') {
-            continue;
+        if ($st !== null && $st['state'] !== 'ok') {
+            $out[] = ['res' => $v, 'fin' => $fin, 'st' => $st, 'key' => reminder_key($v, $st, $cfg), 'tenant' => $tenant];
         }
-        $out[] = ['res' => $v, 'fin' => $fin, 'st' => $st, 'key' => reminder_key($v, $st, $cfg),
-                  'tenant' => ['id' => $v['t_id'], 'full_name' => $v['full_name'], 'contact_no' => $v['contact_no'], 'email' => $v['email'], 'messenger' => $v['messenger']]];
+        $mi = movein_state($v, $fin, $cfg);       // a second, separate notice: the move-in date is close
+        if ($mi !== null) {
+            $out[] = ['res' => $v, 'fin' => $fin, 'st' => $mi, 'key' => reminder_key($v, $mi, $cfg), 'tenant' => $tenant];
+        }
     }
-    $rank = ['overdue' => 0, 'balance' => 1, 'due_today' => 2, 'advance' => 3, 'upcoming' => 4];
+    $rank = ['overdue' => 0, 'balance' => 1, 'due_today' => 2, 'movein_today' => 2, 'advance' => 3, 'upcoming' => 4, 'movein_soon' => 4];
     usort($out, fn($a, $b) => [$rank[$a['st']['state']] ?? 9, -$a['st']['days']] <=> [$rank[$b['st']['state']] ?? 9, -$b['st']['days']]);
     return $out;
 }
 
 function state_label(string $s): string
 {
-    return ['overdue' => 'Payment missing', 'balance' => 'Balance left', 'due_today' => 'Due today', 'upcoming' => 'Coming up', 'advance' => 'Advance not paid'][$s] ?? $s;
+    return ['overdue' => 'Payment missing', 'balance' => 'Balance left', 'due_today' => 'Due today', 'upcoming' => 'Coming up', 'advance' => 'Advance not paid', 'movein_soon' => 'Move-in coming up', 'movein_today' => 'Moves in today'][$s] ?? $s;
 }
 
 /* ------------------------------------------------------------ Messages */
@@ -173,12 +199,13 @@ function first_name(string $full): string
 
 function how_to_pay_text(array $res): string
 {
-    $lines = ['How to pay:', '- Cash: give it to ' . (setting('landlord_name') ?: 'the landlord') . '.'];
+    $lines = ['How to pay:'];
     $g = setting('gcash_no');
     if ($g !== '') {
         $base = public_base_url();
-        $lines[] = '- GCash: send it to ' . $g . ($base !== '' ? ', then report it at ' . $base . '/gcash_pay.php' : ', then report it on our website') . ' (reservation no. ' . $res['reservation_no'] . ').';
+        $lines[] = '- GCash (recommended): send it to ' . $g . ', then report it' . ($base !== '' ? ' at ' . $base . '/gcash_pay.php' : ' on our website (Pay with GCash)') . ' with your reservation number ' . $res['reservation_no'] . '.';
     }
+    $lines[] = '- Cash: give it to ' . (setting('landlord_name') ?: 'the landlord') . ($g === '' ? ' (reservation no. ' . $res['reservation_no'] . ')' : '') . '.';
     return implode("\n", $lines);
 }
 
@@ -214,6 +241,18 @@ function reminder_message(array $c): array
             return [
                 'subject' => "Payment balance: $amt still unpaid",
                 'body' => "Hi $first,\n\nWe received " . money($st['paid_on_item']) . " for the payment that was due on $due ({$st['label']}, $room), but $amt is still unpaid ($st[days] " . ($st['days'] === 1 ? 'day' : 'days') . " late). Total balance on your account: " . money($c['fin']['balance']) . ".$how$ignore\n$sign",
+            ];
+        case 'movein_soon':
+        case 'movein_today':
+            $n = -$st['days'];
+            $whenTxt = $st['state'] === 'movein_today' ? 'today' : ($n === 1 ? 'tomorrow' : "in $n days");
+            $bed = ($c['fin']['advance_needed'] ?? 0) > 0 ? "\n\nPlease note: your bed is only guaranteed once the advance payment of " . money($c['fin']['advance_needed']) . ' is received.' : '';
+            $owe = $st['amount'] > 0
+                ? "\n\nPlease settle " . money($st['amount']) . ' on or before move-in day. This is the security deposit and the first month of rent (after any advance you already paid).' . $how
+                : "\n\nYour payments are complete. We look forward to seeing you!";
+            return [
+                'subject' => $st['state'] === 'movein_today' ? "Move-in day: $room is ready for you" : "Your move-in date is coming up: $due",
+                'body' => "Hi $first,\n\nThis is a reminder from $site. Your move-in date for $room is $due ($whenTxt), reservation $ref.$bed$owe" . ($st['amount'] > 0 ? $ignore : '') . "\n$sign",
             ];
         case 'advance':
             $hold = !empty($st['hold']) ? fmt_datetime((string)$st['hold']) : '';
@@ -263,6 +302,7 @@ function run_reminders(bool $onlyIfDue = false, ?int $onlyReservation = null, bo
         }
         $r = notify_tenant($c['tenant'], $c['st']['state'], reminder_message($c), [
             'reservation_id' => (int)$c['res']['id'], 'dedupe' => $c['key'], 'force' => $force && $onlyReservation !== null,
+            'messenger_too' => in_array($c['st']['state'], ['movein_soon', 'movein_today'], true),   // e-mail AND a Messenger message
         ]);
         $counts[$r['status']] = ($counts[$r['status']] ?? 0) + 1;
         if ($r['status'] !== 'skipped') {

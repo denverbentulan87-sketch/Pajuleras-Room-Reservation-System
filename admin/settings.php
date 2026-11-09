@@ -6,6 +6,16 @@ $tab = in_array(get_str('tab'), ['business', 'policies', 'notify', 'account'], t
 if ((int)$admin['must_change_password'] === 1) {
     $tab = 'account';
 }
+$edit = get_str('edit');
+$editing = false;
+if (in_array($edit, ['business', 'policies', 'notify', 'account'], true)) {
+    $tab = $edit;
+    $editing = true;
+}
+if ((int)$admin['must_change_password'] === 1) {
+    $tab = 'account';
+    $editing = true;
+}
 $errors = [];
 
 function save_setting(string $k, string $v): void
@@ -80,6 +90,8 @@ if (is_post()) {
         $before = post_str('reminder_days_before', 2);
         $repeat = post_str('reminder_repeat_days', 2);
         $max = post_str('reminder_max', 2);
+        $moveinDays = post_str('movein_days_before', 2);
+        if (!ctype_digit($moveinDays) || (int)$moveinDays > 30) $errors[] = 'Days before the move-in date must be a whole number from 0 to 30.';
         if (!ctype_digit($before) || (int)$before > 14) $errors[] = 'Days before the due date must be a whole number from 0 to 14.';
         if (!ctype_digit($repeat) || (int)$repeat < 1 || (int)$repeat > 30) $errors[] = 'Repeat every must be a whole number of days from 1 to 30.';
         if (!ctype_digit($max) || (int)$max < 1 || (int)$max > 20) $errors[] = 'The most reminders per missed payment must be from 1 to 20.';
@@ -88,6 +100,7 @@ if (is_post()) {
             save_setting('reminder_days_before', (string)(int)$before);
             save_setting('reminder_repeat_days', (string)(int)$repeat);
             save_setting('reminder_max', (string)(int)$max);
+            save_setting('movein_days_before', (string)(int)$moveinDays);
             log_activity('settings_updated', 'settings', null, 'Reminder settings updated');
             flash('success', 'Reminder settings saved.');
             redirect('admin/settings.php?tab=notify');
@@ -160,15 +173,20 @@ if (is_post()) {
     }
 }
 
+if ($errors && post_str('form', 12) !== 'notifytest') {
+    $editing = true;
+}
 $GLOBALS['ADMIN'] = $admin;
 $S = settings_all();
 $OLD = $_SERVER['REQUEST_METHOD'] === 'POST' && $errors ? array_merge($S, $_POST) : $S;
 
-admin_header('Settings', 'settings');
-page_head('Settings', 'Manage what customers see, and your sign-in details.');
+$editTitles = ['business' => 'Edit boarding house', 'policies' => 'Edit rates, requirements and rules', 'notify' => 'Edit reminders', 'account' => 'My account'];
+admin_header(is_modal() ? $editTitles[$tab] : 'Settings', 'settings', ['fill' => true]);
+page_head('Settings', is_modal() ? '' : 'Manage what customers see, and your sign-in details.');
 $must = (int)$admin['must_change_password'] === 1;
 ?>
 <?php if ($must): ?><div class="flash flash-warn"><span>You are using the default password. Choose a new one below to unlock the rest of the system.</span></div><?php endif; ?>
+<?php if (!is_modal()): ?>
 <section class="panel">
   <div class="tabs" role="navigation" aria-label="Settings">
     <?php if (!$must): ?>
@@ -178,79 +196,52 @@ $must = (int)$admin['must_change_password'] === 1;
     <?php if (!$must): ?><a href="<?= e(url('admin/settings.php?tab=notify')) ?>"<?= $tab === 'notify' ? ' class="active"' : '' ?>>Reminders &amp; notifications</a><?php endif; ?>
     <a href="<?= e(url('admin/settings.php?tab=account')) ?>"<?= $tab === 'account' ? ' class="active"' : '' ?>>My account</a>
   </div>
+<?php endif; ?>
 
   <?php render_errors($errors); ?>
 
+  <?php if (!$editing): ?>
+  <div class="sum-head">
+    <div><h2><?= e(['business' => 'Boarding house', 'policies' => 'Rates, requirements and rules', 'notify' => 'Reminders and notifications', 'account' => 'My account'][$tab]) ?></h2>
+      <p class="muted"><?= e(['business' => 'What customers see on the website and on receipts.', 'policies' => 'How reserving works and what tenants must follow.', 'notify' => 'When tenants are reminded about rent and move-in.', 'account' => 'Your sign-in details.'][$tab]) ?></p></div>
+    <a class="btn btn-primary" href="<?= e(url('admin/settings.php?edit=' . $tab)) ?>"><?= icon('sliders') ?><span>Edit</span></a>
+  </div>
+  <?php
+    $v = fn($x) => trim((string)$x) !== '' ? e((string)$x) : '<span class="muted">Not set</span>';
+    $lines = function ($x) { $l = array_values(array_filter(array_map('trim', explode("\n", (string)$x)))); return $l ? '<ul class="sum-list">' . implode('', array_map(fn($t) => '<li>' . e($t) . '</li>', $l)) . '</ul>' : '<span class="muted">Not set</span>'; };
+    $ls = lifecycle_settings(); $rc2 = reminder_settings();
+  ?>
   <?php if ($tab === 'business'): ?>
-  <form class="form" method="post" enctype="multipart/form-data" novalidate>
-    <?= csrf_field() ?><input type="hidden" name="form" value="business">
-    <div class="row-2">
-      <label>Boarding house name <span class="req">*</span><input type="text" name="site_name" value="<?= e($OLD['site_name'] ?? '') ?>" maxlength="100" required></label>
-      <label>Landlord name <span class="req">*</span><input type="text" name="landlord_name" value="<?= e($OLD['landlord_name'] ?? '') ?>" maxlength="100" required></label>
-    </div>
-    <label>Short description (shown under the name)<input type="text" name="tagline" value="<?= e($OLD['tagline'] ?? '') ?>" maxlength="200"></label>
-    <label>Address<input type="text" name="address" value="<?= e($OLD['address'] ?? '') ?>" maxlength="200"></label>
-    <div class="row-3">
-      <label>Phone / text number<input type="text" name="phone" value="<?= e($OLD['phone'] ?? '') ?>" maxlength="40"></label>
-      <label>Email<input type="email" name="email" value="<?= e($OLD['email'] ?? '') ?>" maxlength="150"></label>
-      <label>GCash number<input type="text" name="gcash_no" value="<?= e($OLD['gcash_no'] ?? '') ?>" maxlength="40"><span class="hint">Tenants see this in the "Pay with GCash" pop-up.</span></label>
-    </div>
-    <div class="row-2">
-      <label>Hours you answer messages<input type="text" name="contact_hours" value="<?= e($OLD['contact_hours'] ?? '') ?>" maxlength="120"></label>
-      <label>Facebook page link <span class="opt">(optional)</span><input type="text" name="facebook" value="<?= e($OLD['facebook'] ?? '') ?>" maxlength="200" placeholder="facebook.com/YourPageName"><span class="hint">Shown on the website with a "Message us on Messenger" button, so people can reach you first. Use your page's username link, not a profile.php?id=... link, for the Messenger button to work.</span></label>
-    </div>
-    <label>About the boarding house (shown on the home page)<textarea name="about_text" rows="5" maxlength="1500"><?= e($OLD['about_text'] ?? '') ?></textarea></label>
-    <div class="photo-field">
-      <label>Boarding house photo <span class="opt">(JPG, PNG or WebP, up to 3 MB)</span>
-        <input type="file" name="house_photo" accept="image/jpeg,image/png,image/webp">
-        <span class="hint">Shown on the home page. Without a photo, the website shows a house illustration.</span>
-      </label>
-      <?php $hp = house_photo_url(); if ($hp !== ''): ?>
-        <div class="photo-current">
-          <img src="<?= e($hp) ?>" alt="Current boarding house photo" width="200">
-          <label class="check"><input type="checkbox" name="remove_house_photo" value="1"> Remove this photo</label>
-        </div>
-      <?php endif; ?>
-    </div>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Save changes</button></div>
-  </form>
-
+    <dl class="details sum-grid">
+      <div><dt>Boarding house name</dt><dd><?= $v($S['site_name'] ?? '') ?></dd></div>
+      <div><dt>Landlord name</dt><dd><?= $v($S['landlord_name'] ?? '') ?></dd></div>
+      <div class="wide"><dt>Short description</dt><dd><?= $v($S['tagline'] ?? '') ?></dd></div>
+      <div class="wide"><dt>Address</dt><dd><?= $v($S['address'] ?? '') ?></dd></div>
+      <div><dt>Phone / text number</dt><dd><?= $v($S['phone'] ?? '') ?></dd></div>
+      <div><dt>Email</dt><dd><?= $v($S['email'] ?? '') ?></dd></div>
+      <div><dt>GCash number</dt><dd><?= $v($S['gcash_no'] ?? '') ?></dd></div>
+      <div><dt>Hours you answer messages</dt><dd><?= $v($S['contact_hours'] ?? '') ?></dd></div>
+      <div class="wide"><dt>Facebook page</dt><dd><?= $v($S['facebook'] ?? '') ?></dd></div>
+      <div class="wide"><dt>About the boarding house</dt><dd><?= $v($S['about_text'] ?? '') ?></dd></div>
+      <?php $hp0 = house_photo_url(); if ($hp0 !== ''): ?><div class="wide"><dt>Photo</dt><dd><img class="sum-photo" src="<?= e($hp0) ?>" alt="Current boarding house photo" width="220"></dd></div><?php endif; ?>
+    </dl>
   <?php elseif ($tab === 'policies'): ?>
-  <form class="form" method="post" novalidate>
-    <?= csrf_field() ?><input type="hidden" name="form" value="policies">
-    <label class="narrow-field">Advance payment (months of rent)
-      <input type="number" name="advance_months" value="<?= e($OLD['advance_months'] ?? '1') ?>" min="0" max="12">
-      <span class="hint">Used as the default advance when you create a reservation. You can still change it per reservation.</span>
-    </label>
-    <fieldset class="rules-box">
-      <legend>How reserving works</legend>
-      <p class="hint">Most boarding houses hold a bed for a few days while a small reservation fee is paid, then collect the deposit and the rest of the first month at move-in. These settings drive the whole process: the hold, the deadline, the automatic release, and the move-out notice.</p>
-      <div class="row-3">
-        <label>Reservation fee (&#8369;)<input type="text" name="reservation_fee" inputmode="decimal" value="<?= e((string)(lifecycle_settings()['fee'] > 0 ? lifecycle_settings()['fee'] : '')) ?>" placeholder="empty = the full advance"><span class="hint">Counts toward the first month. Empty means the tenant pays the whole advance to hold the bed.</span></label>
-        <label>Hold the bed for (days)<input type="number" name="hold_days" min="1" max="30" value="<?= (int)lifecycle_settings()['hold_days'] ?>" required><span class="hint">If the fee is not paid by then, the bed is released automatically.</span></label>
-        <label>Move-out notice (days)<input type="number" name="notice_days" min="0" max="90" value="<?= (int)lifecycle_settings()['notice_days'] ?>" required><span class="hint">The notice tenants should give before leaving.</span></label>
-      </div>
-      <label class="check"><input type="checkbox" name="reservation_fee_refundable" value="1"<?= lifecycle_settings()['fee_refundable'] ? ' checked' : '' ?>> <span>The reservation fee is refundable if a reservation is cancelled <span class="hint">(unticked: it is kept by default, and you can still change the amount for each cancellation)</span></span></label>
-    </fieldset>
-    <label>Requirements for new tenants <span class="opt">(one per line)</span><textarea name="requirements" rows="5" maxlength="3000"><?= e($OLD['requirements'] ?? '') ?></textarea></label>
-    <label>Payment schedule and terms <span class="opt">(one per line)</span><textarea name="payment_schedule" rows="5" maxlength="3000"><?= e($OLD['payment_schedule'] ?? '') ?></textarea></label>
-    <label>House rules <span class="opt">(one per line)</span><textarea name="house_rules" rows="7" maxlength="3000"><?= e($OLD['house_rules'] ?? '') ?></textarea></label>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Save policies</button></div>
-  </form>
-
+    <dl class="details sum-grid">
+      <div><dt>Advance payment</dt><dd><?= e(plural((int)($S['advance_months'] ?? 1), 'month')) ?> of rent</dd></div>
+      <div><dt>Reservation fee</dt><dd><?= $ls['fee'] > 0 ? e(money($ls['fee'])) . ($ls['fee_refundable'] ? ' (refundable)' : ' (not refundable)') : 'The full advance' ?></dd></div>
+      <div><dt>Bed is held for</dt><dd><?= e(plural((int)$ls['hold_days'], 'day')) ?></dd></div>
+      <div><dt>Move-out notice</dt><dd><?= e(plural((int)$ls['notice_days'], 'day')) ?></dd></div>
+      <div class="wide"><dt>Requirements for new tenants</dt><dd><?= $lines($S['requirements'] ?? '') ?></dd></div>
+      <div class="wide"><dt>Payment schedule and terms</dt><dd><?= $lines($S['payment_schedule'] ?? '') ?></dd></div>
+      <div class="wide"><dt>House rules</dt><dd><?= $lines($S['house_rules'] ?? '') ?></dd></div>
+    </dl>
   <?php elseif ($tab === 'notify'): $rc = reminder_settings(); $ch = notify_channels(); $base = public_base_url(); ?>
-  <form class="form" method="post" novalidate>
-    <?= csrf_field() ?><input type="hidden" name="form" value="notify">
-    <label class="check"><input type="checkbox" name="reminders_enabled" value="1"<?= $rc['enabled'] ? ' checked' : '' ?>> <span><strong>Send payment reminders automatically</strong><br><span class="hint">Tenants are reminded when rent is coming up, due today, missing, or only partly paid.</span></span></label>
-    <div class="row-3">
-      <label>Remind this many days before the due date<input type="number" name="reminder_days_before" value="<?= (int)$rc['before'] ?>" min="0" max="14" required></label>
-      <label>While unpaid, repeat every (days)<input type="number" name="reminder_repeat_days" value="<?= (int)$rc['repeat'] ?>" min="1" max="30" required></label>
-      <label>Stop after this many reminders<input type="number" name="reminder_max" value="<?= (int)$rc['max'] ?>" min="1" max="20" required></label>
-    </div>
-    <p class="hint">Rent is due one month after move-in, then every month on the same day. A reminder is never sent twice for the same due date.</p>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Save</button></div>
-  </form>
-
+    <dl class="details sum-grid">
+      <div><dt>Automatic payment reminders</dt><dd><?= $rc2['enabled'] ? badge('On', 'ok') : badge('Off', 'neutral') ?></dd></div>
+      <div><dt>First reminder</dt><dd><?= e(plural((int)$rc2['before'], 'day')) ?> before the due date</dd></div>
+      <div><dt>Repeat while unpaid</dt><dd>Every <?= e(plural((int)$rc2['repeat'], 'day')) ?>, up to <?= e(plural((int)$rc2['max'], 'reminder')) ?></dd></div>
+      <div><dt>Move-in notice</dt><dd><?= e(plural((int)$rc2['movein'], 'day')) ?> before move-in, and on the day</dd></div>
+    </dl>
   <h3 class="form-sub">How messages are sent</h3>
   <div class="chan-row">
     <div class="chan <?= $ch['email'] ? 'chan-on' : 'chan-off' ?>"><strong>E-mail</strong><span><?= $ch['email'] ? 'Set up' : 'Not set up' ?></span></div>
@@ -283,6 +274,88 @@ $must = (int)$admin['must_change_password'] === 1;
       <li>Without either, the website also checks by itself every 6 hours when someone opens the home page or you open the dashboard.</li>
     </ul>
   </details>
+  <?php else: ?>
+    <dl class="details sum-grid">
+      <div><dt>Username</dt><dd><?= $v($admin['username']) ?></dd></div>
+      <div><dt>Your name</dt><dd><?= $v($admin['full_name']) ?></dd></div>
+      <div><dt>Email</dt><dd><?= $v($admin['email'] ?? '') ?></dd></div>
+      <div><dt>Password</dt><dd>&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</dd></div>
+    </dl>
+  <?php endif; ?>
+
+  <?php elseif ($tab === 'business'): ?>
+  <form class="form" method="post" enctype="multipart/form-data" novalidate>
+    <?= csrf_field() ?><input type="hidden" name="form" value="business">
+    <div class="row-2">
+      <label>Boarding house name <span class="req">*</span><input type="text" name="site_name" value="<?= e($OLD['site_name'] ?? '') ?>" maxlength="100" required></label>
+      <label>Landlord name <span class="req">*</span><input type="text" name="landlord_name" value="<?= e($OLD['landlord_name'] ?? '') ?>" maxlength="100" required></label>
+    </div>
+    <label>Short description (shown under the name)<input type="text" name="tagline" value="<?= e($OLD['tagline'] ?? '') ?>" maxlength="200"></label>
+    <label>Address<input type="text" name="address" value="<?= e($OLD['address'] ?? '') ?>" maxlength="200"></label>
+    <div class="row-3">
+      <label>Phone / text number<input type="text" name="phone" value="<?= e($OLD['phone'] ?? '') ?>" maxlength="40"></label>
+      <label>Email<input type="email" name="email" value="<?= e($OLD['email'] ?? '') ?>" maxlength="150"></label>
+      <label>GCash number<input type="text" name="gcash_no" value="<?= e($OLD['gcash_no'] ?? '') ?>" maxlength="40"><span class="hint">Tenants see this in the "Pay with GCash" pop-up.</span></label>
+    </div>
+    <div class="row-2">
+      <label>Hours you answer messages<input type="text" name="contact_hours" value="<?= e($OLD['contact_hours'] ?? '') ?>" maxlength="120"></label>
+      <label>Facebook page link <span class="opt">(optional)</span><input type="text" name="facebook" value="<?= e($OLD['facebook'] ?? '') ?>" maxlength="200" placeholder="facebook.com/YourPageName"><span class="hint">Shown on the website with a "Message us on Messenger" button, so people can reach you first. Use your page's username link, not a profile.php?id=... link, for the Messenger button to work.</span></label>
+    </div>
+    <label>About the boarding house (shown on the home page)<textarea name="about_text" rows="5" maxlength="1500"><?= e($OLD['about_text'] ?? '') ?></textarea></label>
+    <div class="photo-field">
+      <label>Boarding house photo <span class="opt">(JPG, PNG or WebP, up to 3 MB)</span>
+        <input type="file" name="house_photo" accept="image/jpeg,image/png,image/webp">
+        <span class="hint">Shown on the home page. Without a photo, the website shows a house illustration.</span>
+      </label>
+      <?php $hp = house_photo_url(); if ($hp !== ''): ?>
+        <div class="photo-current">
+          <img src="<?= e($hp) ?>" alt="Current boarding house photo" width="200">
+          <label class="check"><input type="checkbox" name="remove_house_photo" value="1"> Remove this photo</label>
+        </div>
+      <?php endif; ?>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save changes</button><a class="btn" data-cancel href="<?= e(url('admin/settings.php?tab=' . $tab)) ?>">Cancel</a></div>
+  </form>
+
+  <?php elseif ($tab === 'policies'): ?>
+  <form class="form" method="post" novalidate>
+    <?= csrf_field() ?><input type="hidden" name="form" value="policies">
+    <label class="narrow-field">Advance payment (months of rent)
+      <input type="number" name="advance_months" value="<?= e($OLD['advance_months'] ?? '1') ?>" min="0" max="12">
+      <span class="hint">Used as the default advance when you create a reservation. You can still change it per reservation.</span>
+    </label>
+    <fieldset class="rules-box">
+      <legend>How reserving works</legend>
+      <p class="hint">Most boarding houses hold a bed for a few days while a small reservation fee is paid, then collect the deposit and the rest of the first month at move-in. These settings drive the whole process: the hold, the deadline, the automatic release, and the move-out notice.</p>
+      <div class="row-3">
+        <label>Reservation fee (&#8369;)<input type="text" name="reservation_fee" inputmode="decimal" value="<?= e((string)(lifecycle_settings()['fee'] > 0 ? lifecycle_settings()['fee'] : '')) ?>" placeholder="empty = the full advance"><span class="hint">Counts toward the first month. Empty means the tenant pays the whole advance to hold the bed.</span></label>
+        <label>Hold the bed for (days)<input type="number" name="hold_days" min="1" max="30" value="<?= (int)lifecycle_settings()['hold_days'] ?>" required><span class="hint">If the fee is not paid by then, the bed is released automatically.</span></label>
+        <label>Move-out notice (days)<input type="number" name="notice_days" min="0" max="90" value="<?= (int)lifecycle_settings()['notice_days'] ?>" required><span class="hint">The notice tenants should give before leaving.</span></label>
+      </div>
+      <label class="check"><input type="checkbox" name="reservation_fee_refundable" value="1"<?= lifecycle_settings()['fee_refundable'] ? ' checked' : '' ?>> <span>The reservation fee is refundable if a reservation is cancelled <span class="hint">(unticked: it is kept by default, and you can still change the amount for each cancellation)</span></span></label>
+    </fieldset>
+    <label>Requirements for new tenants <span class="opt">(one per line)</span><textarea name="requirements" rows="5" maxlength="3000"><?= e($OLD['requirements'] ?? '') ?></textarea></label>
+    <label>Payment schedule and terms <span class="opt">(one per line)</span><textarea name="payment_schedule" rows="5" maxlength="3000"><?= e($OLD['payment_schedule'] ?? '') ?></textarea></label>
+    <label>House rules <span class="opt">(one per line)</span><textarea name="house_rules" rows="7" maxlength="3000"><?= e($OLD['house_rules'] ?? '') ?></textarea></label>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save policies</button><a class="btn" data-cancel href="<?= e(url('admin/settings.php?tab=' . $tab)) ?>">Cancel</a></div>
+  </form>
+
+  <?php elseif ($tab === 'notify'): $rc = reminder_settings(); $ch = notify_channels(); $base = public_base_url(); ?>
+  <form class="form" method="post" novalidate>
+    <?= csrf_field() ?><input type="hidden" name="form" value="notify">
+    <label class="check"><input type="checkbox" name="reminders_enabled" value="1"<?= $rc['enabled'] ? ' checked' : '' ?>> <span><strong>Send payment reminders automatically</strong><br><span class="hint">Tenants are reminded when rent is coming up, due today, missing, or only partly paid.</span></span></label>
+    <div class="row-3">
+      <label>Remind this many days before the due date<input type="number" name="reminder_days_before" value="<?= (int)$rc['before'] ?>" min="0" max="14" required></label>
+      <label>While unpaid, repeat every (days)<input type="number" name="reminder_repeat_days" value="<?= (int)$rc['repeat'] ?>" min="1" max="30" required></label>
+      <label>Stop after this many reminders<input type="number" name="reminder_max" value="<?= (int)$rc['max'] ?>" min="1" max="20" required></label>
+    </div>
+    <div class="row-3">
+      <label>Tell people their move-in date is coming up, this many days before<input type="number" name="movein_days_before" value="<?= (int)$rc['movein'] ?>" min="0" max="30" required></label>
+    </div>
+    <p class="hint">Rent is due one month after move-in, then every month on the same day. A reminder is never sent twice for the same due date. The move-in notice goes out once at the chosen number of days and once on the move-in day, by e-mail, with the Messenger copy prepared for you.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save</button><a class="btn" data-cancel href="<?= e(url('admin/settings.php?tab=' . $tab)) ?>">Cancel</a></div>
+  </form>
+
 
   <?php else: ?>
   <form class="form" method="post" novalidate autocomplete="off">
@@ -299,8 +372,8 @@ $must = (int)$admin['must_change_password'] === 1;
       <label>Confirm new password<input type="password" name="confirm_password" autocomplete="new-password"<?= $must ? ' required' : '' ?>></label>
     </div>
     <p class="hint">At least 8 characters with a letter and a number. There is only one administrator account; nobody else can be added.</p>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Save</button></div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save</button><a class="btn" data-cancel href="<?= e(url('admin/settings.php?tab=' . $tab)) ?>">Cancel</a></div>
   </form>
   <?php endif; ?>
-</section>
+<?php if (!is_modal()): ?></section><?php endif; ?>
 <?php admin_footer();

@@ -4,8 +4,31 @@ require_admin();
 
 if (is_post()) {
     csrf_verify();
+    defer_notifications();   // e-mails go out after the page is answered, so nobody waits for the mail server
     $action = post_str('action', 10);
     $sid = post_int('id');
+
+    if ($action === 'qr_upload' || $action === 'qr_remove') {
+        try {
+            $old = setting('gcash_qr');
+            if ($action === 'qr_remove') {
+                q("INSERT INTO settings (setting_key, setting_value) VALUES ('gcash_qr', '') ON DUPLICATE KEY UPDATE setting_value = ''");
+                delete_room_photo($old);
+                log_activity('gcash_qr_removed', 'settings', null, 'GCash QR code removed');
+                flash('success', 'The GCash QR code was removed.');
+            } else {
+                $new = store_room_photo($_FILES['qr'] ?? [], 'house');
+                if ($new === null) throw new RuleException('Choose the QR code image first (a screenshot or photo saved from GCash).');
+                q("INSERT INTO settings (setting_key, setting_value) VALUES ('gcash_qr', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$new]);
+                if ($old !== '' && $old !== $new) delete_room_photo($old);
+                log_activity('gcash_qr_saved', 'settings', null, $old !== '' ? 'GCash QR code replaced' : 'GCash QR code added');
+                flash('success', 'GCash QR code saved. Tenants now see it when they pay.');
+            }
+        } catch (RuleException $ex) {
+            flash('error', $ex->getMessage());
+        }
+        redirect('admin/gcash.php');
+    }
 
     if ($action === 'approve') {
         try {
@@ -89,7 +112,7 @@ $counts = [];
 foreach (['pending', 'approved', 'rejected'] as $s) {
     $counts[$s] = (int)fetch_val("SELECT COUNT(*) FROM payment_submissions WHERE status = ?", [$s]);
 }
-$pg = paginate($counts[$tab], 15);
+$pg = paginate($counts[$tab], 10, 'page', '', true);
 $rows = fetch_all("SELECT s.*, t.full_name, t.contact_no, v.reservation_no, r.room_no
                      FROM payment_submissions s
                      JOIN tenants t ON t.id = s.tenant_id
@@ -98,9 +121,40 @@ $rows = fetch_all("SELECT s.*, t.full_name, t.contact_no, v.reservation_no, r.ro
                     WHERE s.status = ?
                     ORDER BY s.created_at " . ($tab === 'pending' ? 'ASC' : 'DESC') . " LIMIT {$pg['per']} OFFSET {$pg['offset']}", [$tab]);
 
-admin_header('GCash payments', 'gcash');
+admin_header('GCash payments', 'gcash', ['fill' => true]);
 page_head('GCash payments', 'Payments tenants sent online. Check them against your GCash history, then approve to record them and print the receipt.');
 ?>
+<?php $qrUrl = gcash_qr_url(); ?>
+<section class="panel qr-panel">
+  <div class="qr-body">
+    <?php if ($qrUrl !== ''): ?>
+      <a class="qr-img" href="<?= e($qrUrl) ?>" target="_blank" rel="noopener" title="Open full size"><img src="<?= e($qrUrl) ?>" alt="Your GCash QR code" width="170" height="170"></a>
+    <?php else: ?>
+      <div class="qr-img qr-empty" aria-hidden="true"><?= icon('wallet') ?></div>
+    <?php endif; ?>
+    <div class="qr-text">
+      <h2>GCash QR code</h2>
+      <p class="muted"><?= $qrUrl !== '' ? 'Tenants see this code with your GCash number in the Pay with GCash pop-up, so they can scan and pay in seconds.' : 'Add your GCash QR code so tenants can scan it instead of typing your number. Save it from the GCash app (Profile, then My QR) and upload the picture here.' ?></p>
+      <p class="qr-meta"><?= setting('gcash_no') !== '' ? 'GCash number: <strong>' . e(setting('gcash_no')) . '</strong>' : 'GCash number not set yet. <a href="' . e(url('admin/settings.php?tab=business')) . '">Add it in Settings</a>.' ?></p>
+      <div class="qr-actions">
+        <details class="action-box"><summary class="btn btn-primary"><?= icon('plus') ?><span><?= $qrUrl !== '' ? 'Replace QR code' : 'Add QR code' ?></span></summary>
+          <form method="post" enctype="multipart/form-data" class="form mini">
+            <?= csrf_field() ?><input type="hidden" name="action" value="qr_upload">
+            <p class="m-sub">Use a clear, square picture of the QR code. A screenshot of GCash &ldquo;My QR&rdquo; works best. JPG, PNG or WebP, up to 3 MB.</p>
+            <label>QR code picture <span class="req">*</span><input type="file" name="qr" accept="image/jpeg,image/png,image/webp" required data-preview="qr-prev"></label>
+            <div class="qr-preview" id="qr-prev" hidden><img alt="Preview of the QR code"><span>This is how it will look.</span></div>
+            <div class="form-actions"><button class="btn btn-primary" type="submit">Save QR code</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+          </form>
+        </details>
+        <?php if ($qrUrl !== ''): ?>
+          <a class="btn" href="<?= e($qrUrl) ?>" download>Download</a>
+          <form method="post" data-confirm="Remove the GCash QR code? Tenants will only see your GCash number." data-confirm-title="Remove QR code?" data-confirm-ok="Remove"><?= csrf_field() ?><input type="hidden" name="action" value="qr_remove"><button class="btn btn-danger-outline" type="submit">Remove</button></form>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="panel">
   <div class="tabs" role="navigation" aria-label="Report status">
     <?php foreach (['pending' => 'To review', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $k => $l): ?>

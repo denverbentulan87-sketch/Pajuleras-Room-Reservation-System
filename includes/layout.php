@@ -48,6 +48,19 @@ function login_cta(string $class = ''): string
     return '<a class="' . e($class) . '" href="' . e(url('?login=1')) . '"><span>Landlord login</span></a>';
 }
 
+/** The "Landlord login" button that sits in the floating side dock, next to "Pay with GCash". */
+function login_fab(): string
+{
+    $inner = icon('key') . '<span>' . (is_admin() ? 'Dashboard' : 'Landlord login') . '</span>';
+    if (is_admin()) {
+        return '<a class="fab fab-login" href="' . e(url('admin/')) . '">' . $inner . '</a>';
+    }
+    if (!empty($GLOBALS['LOGIN_MODAL'])) {
+        return '<button type="button" class="fab fab-login" data-open-login>' . $inner . '</button>';
+    }
+    return '<a class="fab fab-login" href="' . e(url('?login=1')) . '">' . $inner . '</a>';
+}
+
 /* ==================================================================
  *  PUBLIC WEBSITE
  * ================================================================== */
@@ -65,7 +78,6 @@ function public_header(string $title, string $active = '', string $description =
         'features' => ['Features', $anchor('features'), 'sparkle'],
         'services' => ['Services', $anchor('services'), 'layers'],
         'rooms'    => ['Rooms',    url('rooms.php'),    'door'],
-        'pay'      => ['Pay by GCash', url('gcash_pay.php'), 'wallet'],
         'about'    => ['About',    $anchor('about'),    'info'],
         'contact'  => ['Contact',  $anchor('contact'),  'mail'],
     ];
@@ -101,11 +113,10 @@ function public_header(string $title, string $active = '', string $description =
     <nav id="site-nav" class="site-nav" aria-label="Main">
       <ul class="nav-links">
         <?php foreach ($nav as $key => [$label, $href, $ic]): ?>
-          <li><a class="nav-link<?= $key === 'pay' ? ' nav-link-pay' : '' ?><?= $active === $key ? ' is-active' : '' ?>" href="<?= e($href) ?>" data-nav="<?= e($key) ?>"<?= $key === 'pay' ? ' data-open-gcash' : '' ?><?= $active === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a></li>
+          <li><a class="nav-link<?= $active === $key ? ' is-active' : '' ?>" href="<?= e($href) ?>" data-nav="<?= e($key) ?>"<?= $active === $key ? ' aria-current="page"' : '' ?>><?= e($label) ?></a></li>
         <?php endforeach; ?>
       </ul>
       <div class="nav-actions" data-menu-actions>
-        <?= login_cta('btn btn-outline btn-cta') ?>
         <a class="btn btn-primary btn-cta" href="<?= e(url('inquire.php')) ?>"><span>Send an inquiry</span><?= icon('arrow') ?></a>
       </div>
     </nav>
@@ -166,13 +177,14 @@ function public_footer(): void
 <?php if (basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) !== 'track.php') { render_track_modal(); } ?>
 <?php render_chat_widget(); ?>
 <?php $onGcashPage = basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) === 'gcash_pay.php'; ?>
-<div class="fab-dock">
-<?php if (!$onInquirePage): ?>
+<div class="fab-dock<?= $landing ? ' dock-slim' : '' ?>">
+<?php if (!$onInquirePage && !$landing): ?>
   <a class="fab fab-late<?= $landing ? '' : ' is-visible' ?>" href="<?= e(url('inquire.php')) ?>" data-fab><?= icon('message') ?><span>Send an inquiry</span></a>
 <?php endif; ?>
-<?php if (!$onGcashPage): ?>
+<?php if (!$onGcashPage && !$landing): ?>
   <a class="fab fab-gcash" href="<?= e(url('gcash_pay.php')) ?>" data-open-gcash><?= icon('wallet') ?><span>Pay with GCash</span></a>
 <?php endif; ?>
+  <?= login_fab() ?>
 </div>
 <a class="to-top tip tip-left" data-tip="Back to top" href="<?= e($landing ? '#home' : '#main') ?>" data-to-top><?= icon('arrow-up') ?><span class="sr-only">Back to top</span></a>
 <script src="<?= e(asset('assets/js/app.js')) ?>" defer></script>
@@ -191,10 +203,12 @@ function public_footer(): void
  * ================================================================== */
 function admin_header(string $title, string $active = '', array $opts = []): void
 {
+    $GLOBALS['ADMIN_FILL'] = !empty($opts['fill']);
     if (is_modal()) {
         // pop-up request: send only the content, none of the page around it (and no extra queries)
         $GLOBALS['ADMIN_ICON'] = '';
-        echo '<div class="mfrag" data-mtitle="' . e($title) . '">';
+        $mi = ['inquiries' => 'inbox', 'reservations' => 'calendar', 'tenants' => 'users', 'rooms' => 'bed', 'payments' => 'cash', 'gcash' => 'wallet', 'settings' => 'sliders', 'reminders' => 'bell'][$active] ?? 'check';
+        echo '<div class="mfrag" data-mtitle="' . e($title) . '"><span class="mf-ic" hidden>' . icon($mi) . '</span>';
         return;
     }
     if (($_SESSION['hold_check'] ?? 0) < time() - 300) {
@@ -284,6 +298,12 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
       <?php endforeach; ?>
     </nav>
     <div class="side-foot">
+      <div class="side-user"><span class="avatar" aria-hidden="true"><?= e(mb_strtoupper(mb_substr(trim((string)$admin['full_name']) ?: 'L', 0, 1))) ?></span><span class="side-user-text"><strong><?= e($admin['full_name']) ?></strong><small>Landlord</small></span>
+        <form method="post" action="<?= e(url('admin/logout.php')) ?>" class="side-out" data-confirm="You will need to sign in again to manage the boarding house. Any unsaved changes will be lost." data-confirm-title="Sign out?" data-confirm-ok="Yes, sign out" data-confirm-style="primary">
+          <?= csrf_field() ?>
+          <button class="side-out-btn" type="submit" title="Sign out" aria-label="Sign out"><?= icon('logout') ?></button>
+        </form>
+      </div>
       <a href="<?= e(url('')) ?>" target="_blank" rel="noopener" title="View public website"><?= icon('globe') ?><span class="side-label">View public website</span></a>
     </div>
   </aside>
@@ -322,15 +342,8 @@ function admin_header(string $title, string $active = '', array $opts = []): voi
         </div>
       </div>
 
-      <div class="topbar-user">
-        <span class="tu-name"><?= e($admin['full_name']) ?></span>
-        <form method="post" action="<?= e(url('admin/logout.php')) ?>">
-          <?= csrf_field() ?>
-          <button class="btn btn-sm btn-ghost" type="submit" title="Sign out"><?= icon('logout') ?><span class="tu-out">Sign out</span></button>
-        </form>
-      </div>
     </header>
-    <main id="main" class="page">
+    <main id="main" class="page<?= !empty($GLOBALS['ADMIN_FILL']) ? ' fill' : '' ?>">
       <?php render_flashes(); ?>
 <?php
 }
@@ -347,6 +360,8 @@ function admin_footer(): void
 </div>
 <script src="<?= e(asset('assets/js/app.js')) ?>" defer></script>
 <script src="<?= e(asset('assets/js/admin.js')) ?>" defer></script>
+<?php foreach ((array)($GLOBALS['ADMIN_SCRIPTS'] ?? []) as $extra): ?><script src="<?= e(asset($extra)) ?>" defer></script>
+<?php endforeach; ?>
 </body>
 </html>
 <?php

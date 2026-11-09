@@ -33,16 +33,23 @@ if (is_post()) {
 }
 
 $overview = reminder_overview();
+$overviewAll = $overview;
+$pgO = paginate(count($overviewAll), 6, 'op', 'needs');
+$overview = array_slice($overviewAll, $pgO['offset'], $pgO['per']);
+$manualTotal = (int)fetch_val("SELECT COUNT(*) FROM notifications WHERE status = 'manual'");
+$pgM = paginate($manualTotal, 5, 'mp', 'by-hand');
 $manual = fetch_all("SELECT n.*, t.full_name, t.contact_no, t.email, t.messenger, v.reservation_no
                        FROM notifications n
                        LEFT JOIN tenants t ON t.id = n.tenant_id
                        LEFT JOIN reservations v ON v.id = n.reservation_id
-                      WHERE n.status = 'manual' ORDER BY n.created_at DESC LIMIT 50");
+                      WHERE n.status = 'manual' ORDER BY n.created_at DESC LIMIT {$pgM['per']} OFFSET {$pgM['offset']}");
+$logTotal = (int)fetch_val("SELECT COUNT(*) FROM notifications");
+$pgL = paginate($logTotal, 8, 'lp', 'recent');
 $log = fetch_all("SELECT n.*, t.full_name, v.reservation_no
                     FROM notifications n
                     LEFT JOIN tenants t ON t.id = n.tenant_id
                     LEFT JOIN reservations v ON v.id = n.reservation_id
-                   ORDER BY n.id DESC LIMIT 30");
+                   ORDER BY n.id DESC LIMIT {$pgL['per']} OFFSET {$pgL['offset']}");
 $lastSent = [];
 foreach (fetch_all("SELECT reservation_id, MAX(id) AS nid FROM notifications WHERE reservation_id IS NOT NULL AND status IN ('sent','manual') GROUP BY reservation_id") as $r) {
     $lastSent[(int)$r['reservation_id']] = fetch_one("SELECT channel, status, created_at FROM notifications WHERE id = ?", [$r['nid']]);
@@ -50,11 +57,11 @@ foreach (fetch_all("SELECT reservation_id, MAX(id) AS nid FROM notifications WHE
 $ch = notify_channels();
 $cfg = reminder_settings();
 $lastRun = (int)setting('reminders_last_run', '0');
-$typeLabel = ['upcoming' => 'Coming up', 'due_today' => 'Due today', 'overdue' => 'Missing payment', 'balance' => 'Balance left', 'advance' => 'Advance not paid',
+$typeLabel = ['movein_soon' => 'Move-in coming up', 'movein_today' => 'Moves in today', 'upcoming' => 'Coming up', 'due_today' => 'Due today', 'overdue' => 'Missing payment', 'balance' => 'Balance left', 'advance' => 'Advance not paid',
               'gcash_approved' => 'GCash received', 'reservation_held' => 'Room held', 'reservation_secured' => 'Bed secured', 'hold_expired' => 'Hold ended', 'moveout_notice' => 'Move-out notice', 'settlement' => 'Move-out summary', 'reservation_cancelled' => 'Cancellation', 'gcash_rejected' => 'GCash not confirmed', 'inquiry_reply' => 'Inquiry reply', 'test' => 'Test'];
-$tone = ['overdue' => 'bad', 'balance' => 'warn', 'due_today' => 'warn', 'advance' => 'info', 'upcoming' => 'neutral'];
+$tone = ['overdue' => 'bad', 'balance' => 'warn', 'due_today' => 'warn', 'advance' => 'info', 'upcoming' => 'neutral', 'movein_soon' => 'info', 'movein_today' => 'warn'];
 
-admin_header('Payment reminders', 'reminders');
+admin_header('Payment reminders', 'reminders', ['fill' => true]);
 page_head('Payment reminders', 'Rent is due one month after move-in, every month. Tenants who are late or have a balance are reminded automatically.',
     '<form method="post" class="inline-form">' . csrf_field() . '<input type="hidden" name="action" value="run"><button class="btn btn-primary" type="submit">Check and send now</button></form>');
 ?>
@@ -62,15 +69,16 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
   <div class="panel-head"><h2>How reminders are delivered</h2><a href="<?= e(url('admin/settings.php?tab=notify')) ?>">Settings</a></div>
   <div class="chan-row">
     <div class="chan <?= $ch['email'] ? 'chan-on' : 'chan-off' ?>"><strong>E-mail</strong><span><?= $ch['email'] ? 'Set up. Sent automatically.' : 'Not set up yet.' ?></span></div>
-    <div class="chan chan-hand"><strong>Messenger</strong><span>One tap below. You send it from your own Facebook account (Facebook does not allow automatic messages).</span></div>
+    <div class="chan chan-hand"><strong>Messenger</strong><span>Prepared for you below, one tap each. You send it from your own Facebook account (Facebook does not allow websites to message people by themselves).</span></div>
   </div>
   <p class="hint">E-mail is sent automatically. When a tenant has no e-mail, or e-mail is not set up or fails, the message is prepared below so you can send it with one tap on Messenger.
      Reminders are <?= $cfg['enabled'] ? '<strong>on</strong>' : '<strong>off</strong>' ?>: <?= (int)$cfg['before'] ?> days before the due date, on the due date, then every <?= (int)$cfg['repeat'] ?> days while unpaid.
+     Tenants who have not moved in yet get a <strong>move-in notice</strong> by e-mail (with a Messenger copy prepared here) <?= (int)$cfg['movein'] ?> days before their move-in date and on the day.
      <?= $lastRun > 0 ? 'Last check: ' . e(fmt_datetime(date('Y-m-d H:i:s', $lastRun))) . '.' : 'Not checked yet.' ?></p>
 </section>
 
-<section class="panel">
-  <div class="panel-head"><h2>Who needs attention</h2></div>
+<section class="panel" id="needs">
+  <div class="panel-head"><h2>Who needs attention (<?= count($overviewAll) ?>)</h2></div>
   <?php if ($overview): ?>
   <div class="table-scroll"><table>
     <thead><tr><th>Tenant</th><th>Status</th><th>Due date</th><th class="num">Amount</th><th>Last reminder</th><th></th></tr></thead>
@@ -80,7 +88,7 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
         <td><strong><?= e($c['tenant']['full_name']) ?></strong><br><span class="muted small"><a href="<?= e(url('admin/reservation_view.php?id=' . (int)$res['id'])) ?>"><?= e($res['reservation_no']) ?></a> &middot; Room <?= e($res['room_no']) ?></span></td>
         <td><?= badge(state_label($st['state']), $tone[$st['state']] ?? 'neutral') ?>
             <?php if (in_array($st['state'], ['overdue', 'balance'], true)): ?><br><span class="muted small"><?= (int)$st['days'] ?> <?= $st['days'] === 1 ? 'day' : 'days' ?> late</span>
-            <?php elseif ($st['state'] === 'upcoming'): ?><br><span class="muted small">in <?= (int)(-$st['days']) ?> <?= -$st['days'] === 1 ? 'day' : 'days' ?></span><?php endif; ?></td>
+            <?php elseif (in_array($st['state'], ['upcoming', 'movein_soon'], true)): ?><br><span class="muted small">in <?= (int)(-$st['days']) ?> <?= -$st['days'] === 1 ? 'day' : 'days' ?></span><?php endif; ?></td>
         <td><?= $st['due'] ? e(fmt_date($st['due'])) : '' ?></td>
         <td class="num"><strong><?= e(money($st['amount'])) ?></strong><?php if (in_array($st['state'], ['overdue', 'balance'], true) && abs($c['fin']['balance'] - $st['amount']) > 0.005): ?><br><span class="muted small">total owed <?= e(money($c['fin']['balance'])) ?></span><?php endif; ?></td>
         <td><?= $ls ? e(['email' => 'E-mailed', 'manual' => ($ls['status'] === 'manual' ? 'Prepared' : 'Sent by hand'), 'messenger' => 'Messenger'][$ls['channel']] ?? $ls['channel']) . '<br><span class="muted small">' . e(fmt_datetime($ls['created_at'])) . '</span>' : '<span class="muted small">None yet</span>' ?></td>
@@ -89,13 +97,14 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
     <?php endforeach; ?>
     </tbody>
   </table></div>
+  <?= pager($pgO) ?>
   <?php else: ?>
     <p class="empty">Everyone is up to date. Nobody is late, owes a balance, or is due soon.</p>
   <?php endif; ?>
 </section>
 
 <section class="panel" id="by-hand">
-  <div class="panel-head"><h2>To send by hand (<?= count($manual) ?>)</h2></div>
+  <div class="panel-head"><h2>To send by hand (<?= $manualTotal ?>)</h2></div>
   <?php if ($manual): ?>
     <p class="hint">These could not be sent automatically. Tap a button to open your phone's messaging app with the message already written, then mark it as sent.</p>
     <div class="manual-list">
@@ -120,12 +129,13 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
       </article>
     <?php endforeach; ?>
     </div>
+    <?= pager($pgM) ?>
   <?php else: ?>
     <p class="empty">Nothing waiting. Every reminder was sent automatically or handled.</p>
   <?php endif; ?>
 </section>
 
-<section class="panel">
+<section class="panel" id="recent">
   <div class="panel-head"><h2>Recent messages</h2></div>
   <?php if ($log): ?>
   <div class="table-scroll"><table>
@@ -142,6 +152,7 @@ page_head('Payment reminders', 'Rent is due one month after move-in, every month
     <?php endforeach; ?>
     </tbody>
   </table></div>
+  <?= pager($pgL) ?>
   <?php else: ?><p class="empty">No messages yet.</p><?php endif; ?>
 </section>
 <?php admin_footer();

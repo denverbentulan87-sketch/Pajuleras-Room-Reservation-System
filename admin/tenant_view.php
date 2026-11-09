@@ -53,14 +53,52 @@ if (is_post()) {
         redirect('admin/tenant_view.php?id=' . $id);
     }
     if (post_str('action', 20) === 'delete') {
-        if ((int)fetch_val("SELECT COUNT(*) FROM reservations WHERE tenant_id = ?", [$id]) > 0) {
-            flash('error', 'This tenant has reservation history and cannot be deleted. Mark the tenant inactive instead.');
+        try {
+            $proofs = [];
+            $gone = in_transaction(function () use ($id, &$proofs) {
+                $t = fetch_one("SELECT * FROM tenants WHERE id = ? FOR UPDATE", [$id]);
+                if (!$t) throw new RuleException('That tenant no longer exists.');
+                if (strcasecmp(post_str('confirm_code', 20), (string)$t['tenant_code']) !== 0) {
+                    throw new RuleException('To delete, type the tenant code exactly as shown (' . $t['tenant_code'] . ').');
+                }
+                if ((int)fetch_val("SELECT COUNT(*) FROM reservations WHERE tenant_id = ? AND status IN ('pending','confirmed','checked_in')", [$id]) > 0) {
+                    throw new RuleException('This tenant still has an open reservation or is staying now. Cancel it or check the tenant out first.');
+                }
+                $resIds = array_column(fetch_all("SELECT id FROM reservations WHERE tenant_id = ?", [$id]), 'id');
+                $inqIds = array_column(fetch_all("SELECT id FROM inquiries WHERE tenant_id = ? OR (contact_no = ? AND ? <> '00000000000') OR id IN (SELECT inquiry_id FROM reservations WHERE tenant_id = ? AND inquiry_id IS NOT NULL)",
+                    [$id, $t['contact_no'], $t['contact_no'], $id]), 'id');
+                $proofs = array_column(fetch_all("SELECT proof_file FROM payment_submissions WHERE tenant_id = ? AND proof_file IS NOT NULL", [$id]), 'proof_file');
+                $n = ['reservations' => count($resIds), 'payments' => (int)fetch_val("SELECT COUNT(*) FROM payments WHERE tenant_id = ?", [$id]), 'inquiries' => count($inqIds)];
+
+                q("DELETE FROM payment_submissions WHERE tenant_id = ?", [$id]);
+                q("DELETE FROM payments WHERE tenant_id = ?", [$id]);
+                q("DELETE FROM notifications WHERE tenant_id = ?", [$id]);
+                foreach ($resIds as $rid) {
+                    q("DELETE FROM notifications WHERE reservation_id = ?", [$rid]);
+                }
+                foreach ($inqIds as $iid) {
+                    q("DELETE FROM inquiry_messages WHERE inquiry_id = ?", [$iid]);
+                    q("DELETE FROM inquiries WHERE id = ?", [$iid]);
+                }
+                q("DELETE FROM reservations WHERE tenant_id = ?", [$id]);
+                q("DELETE FROM tenants WHERE id = ?", [$id]);
+                // the name no longer appears in the activity history either
+                $label = 'Deleted tenant ' . $t['tenant_code'];
+                if (mb_strlen((string)$t['full_name']) >= 3) {
+                    q("UPDATE activity_log SET details = REPLACE(details, ?, ?) WHERE details LIKE ?", [$t['full_name'], $label, like_escape($t['full_name'])]);
+                }
+                log_activity('tenant_deleted', 'tenant', $id, $t['tenant_code'] . ' deleted permanently with ' . $n['reservations'] . ' reservation(s), ' . $n['payments'] . ' payment(s) and ' . $n['inquiries'] . ' inquiry(ies)');
+                return $n;
+            });
+            foreach ($proofs as $pf) {
+                delete_gcash_proof($pf);
+            }
+            flash('success', 'Tenant deleted permanently, with ' . plural($gone['reservations'], 'reservation') . ', ' . plural($gone['payments'], 'payment') . ' and ' . plural($gone['inquiries'], 'inquiry') . '.');
+            redirect('admin/tenants.php');
+        } catch (RuleException $ex) {
+            flash('error', $ex->getMessage());
             redirect('admin/tenant_view.php?id=' . $id);
         }
-        q("DELETE FROM tenants WHERE id = ?", [$id]);
-        log_activity('tenant_deleted', 'tenant', $id, $t['full_name']);
-        flash('success', 'Tenant record deleted.');
-        redirect('admin/tenants.php');
     }
 }
 
@@ -136,10 +174,6 @@ $openRes = (int)fetch_val("SELECT COUNT(*) FROM reservations WHERE tenant_id = ?
   </table></div>
   <?php else: ?>
     <p class="empty">No reservations yet. <a href="<?= e(url('admin/reservation_form.php?tenant_id=' . $id)) ?>">Create one</a>.</p>
-    <form method="post" data-confirm="Delete this tenant record? This cannot be undone.">
-      <?= csrf_field() ?><input type="hidden" name="action" value="delete">
-      <button class="btn btn-danger btn-sm" type="submit">Delete tenant record</button>
-    </form>
   <?php endif; ?>
 </section>
 <?php if (!$erased): ?>
@@ -154,10 +188,27 @@ $openRes = (int)fetch_val("SELECT COUNT(*) FROM reservations WHERE tenant_id = ?
     <form method="post" class="form mini" data-confirm="Permanently erase all personal details of this tenant?">
       <?= csrf_field() ?><input type="hidden" name="action" value="erase">
       <label>Type <strong><?= e($t['tenant_code']) ?></strong> to confirm<input type="text" name="confirm_code" maxlength="20" required autocomplete="off"></label>
-      <button class="btn btn-danger" type="submit">Erase permanently</button>
+      <div class="form-actions"><button class="btn btn-danger" type="submit">Erase permanently</button><button class="btn" type="button" data-cancel>Cancel</button></div>
     </form>
   </details>
   <?php endif; ?>
 </section>
 <?php endif; ?>
+<section class="panel danger-panel">
+  <div class="panel-head"><h2>Delete tenant permanently</h2></div>
+  <p class="muted">Use this when the person is gone and you no longer need their information. The tenant, all their reservations, payments and receipts, GCash proofs and inquiries are removed for good and cannot be brought back. For a record you may need later, use &ldquo;Erase personal details&rdquo; above instead, which keeps the payments.</p>
+  <?php if ($openRes): ?>
+    <p class="hint warn">This tenant has an open reservation or is staying now. Cancel it or check them out first.</p>
+  <?php else: ?>
+  <details class="action-box">
+    <summary class="btn btn-danger-outline"><?= icon('alert') ?><span>Delete tenant permanently</span></summary>
+    <form method="post" class="form mini">
+      <?= csrf_field() ?><input type="hidden" name="action" value="delete">
+      <p class="m-sub"><strong><?= e($t['full_name']) ?></strong> (<?= e($t['tenant_code']) ?>) and everything linked to them will be deleted: <?= e(plural(count($res), 'reservation')) ?>, <?= e(plural((int)fetch_val("SELECT COUNT(*) FROM payments WHERE tenant_id = ?", [$id]), 'payment')) ?>, and their inquiries. This cannot be undone.</p>
+      <label>Type <strong><?= e($t['tenant_code']) ?></strong> to confirm <span class="req">*</span><input type="text" name="confirm_code" maxlength="20" required autocomplete="off" placeholder="<?= e($t['tenant_code']) ?>"></label>
+      <div class="form-actions"><button class="btn btn-danger" type="submit">Delete permanently</button><button class="btn" type="button" data-cancel>Keep tenant</button></div>
+    </form>
+  </details>
+  <?php endif; ?>
+</section>
 <?php admin_footer();

@@ -36,8 +36,12 @@ function default_advance_amount(float $monthlyRate): float
     return round($monthlyRate * max(0, (int)setting('advance_months', '1')), 2);
 }
 
-function hold_deadline(): string
+function hold_deadline(?string $moveIn = null): string
 {
+    // the advance is due on the move-in day, so that is how long the bed is held
+    if ($moveIn !== null && valid_date($moveIn) && $moveIn > today()) {
+        return $moveIn . ' 23:59:59';
+    }
     return date('Y-m-d H:i:s', strtotime('+' . lifecycle_settings()['hold_days'] . ' days'));
 }
 
@@ -260,7 +264,9 @@ function lifecycle_message(string $type, array $c): array
 
     switch ($type) {
         case 'reservation_held':
-            $deadline = $res['hold_until'] ? fmt_datetime($res['hold_until']) : '';
+            $deadline = $res['hold_until']
+                ? (substr((string)$res['hold_until'], 0, 10) === (string)$res['move_in_date'] ? fmt_date($res['move_in_date']) . ', your move-in date' : fmt_datetime($res['hold_until']))
+                : '';
             return ['subject' => "$room is held for you" . ($deadline ? " until $deadline" : ''),
                 'body' => "Hi $first,\n\n$site is holding $room for you from $moveIn (reservation $ref).\n\n"
                     . 'To keep the bed, please pay the reservation amount of ' . money($fin['advance_needed']) . ($deadline ? " by $deadline" : '') . '. '

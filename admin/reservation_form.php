@@ -146,7 +146,7 @@ if (is_post()) {
                     if (!$limited && $res['status'] === 'pending' && $OLD['status'] === 'confirmed') {
                         $newlyConfirmed = true;
                         $fin = reservation_financials(fetch_one("SELECT * FROM reservations WHERE id = ?", [$id]));
-                        q("UPDATE reservations SET hold_until = ? WHERE id = ?", [$fin['advance_needed'] > 0 ? hold_deadline() : null, $id]);
+                        q("UPDATE reservations SET hold_until = ? WHERE id = ?", [$fin['advance_needed'] > 0 ? hold_deadline($OLD['move_in_date']) : null, $id]);
                     }
                     log_activity('reservation_updated', 'reservation', $id, $res['reservation_no'] . ' edited');
                     return $id;

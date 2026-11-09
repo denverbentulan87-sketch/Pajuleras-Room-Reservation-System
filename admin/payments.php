@@ -47,10 +47,10 @@ $w = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 $base = "FROM payments p JOIN tenants t ON t.id = p.tenant_id JOIN reservations v ON v.id = p.reservation_id $w";
 $total = (int)fetch_val("SELECT COUNT(*) $base", $params);
 $sum = (float)fetch_val("SELECT COALESCE(SUM(CASE WHEN p.is_void = 0 AND p.payment_type <> 'refund' THEN p.amount END),0) $base", $params);
-$pg = paginate($total, 20);
+$pg = paginate($total, 10, 'page', '', true);
 $rows = fetch_all("SELECT p.*, t.full_name, v.reservation_no $base ORDER BY p.payment_date DESC, p.id DESC LIMIT {$pg['per']} OFFSET {$pg['offset']}", $params);
 
-admin_header('Payments', 'payments');
+admin_header('Payments', 'payments', ['fill' => true]);
 page_head('Payments', 'Advance payments, deposits, rent, and refunds.', '<a class="btn" href="' . e(url('admin/gcash.php')) . '">GCash reports' . (gcash_pending_count() ? ' (' . gcash_pending_count() . ')' : '') . '</a> <a class="btn btn-primary" href="' . e(url('admin/payment_form.php')) . '">Record payment</a>');
 ?>
 <section class="panel">
@@ -84,12 +84,13 @@ page_head('Payments', 'Advance payments, deposits, rent, and refunds.', '<a clas
         <td class="actions">
           <a class="btn btn-sm" href="<?= e(url('admin/receipt.php?id=' . (int)$p['id'])) ?>">Receipt</a>
           <?php if (!$p['is_void']): ?>
-          <details class="action-box inline-box"><summary class="btn btn-sm btn-danger-outline">Void</summary>
+          <details class="action-box inline-box"><summary class="btn btn-sm btn-danger-outline">Void payment</summary>
             <form method="post" class="form mini">
               <?= csrf_field() ?><input type="hidden" name="action" value="void"><input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
               <input type="hidden" name="return" value="admin/payments.php">
-              <label>Reason<input type="text" name="reason" maxlength="255" required placeholder="e.g. Entered twice by mistake"></label>
-              <button class="btn btn-danger btn-sm" type="submit">Void payment</button>
+              <p class="m-sub">Receipt <?= e($p['receipt_no']) ?> for <?= e(money($p['amount'])) ?> stays on record but no longer counts toward the balance. This cannot be undone.</p>
+              <label>Reason <span class="req">*</span><input type="text" name="reason" maxlength="255" required placeholder="e.g. Entered twice by mistake"></label>
+              <div class="form-actions"><button class="btn btn-danger" type="submit">Void payment</button><button class="btn" type="button" data-cancel>Keep payment</button></div>
             </form>
           </details>
           <?php endif; ?>

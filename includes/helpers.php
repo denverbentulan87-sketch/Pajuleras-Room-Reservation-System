@@ -91,15 +91,87 @@ function redirect(string $path): void
     if (!preg_match('#^https?://#i', $path)) {
         $path = url($path);
     }
+    $deferred = !empty($GLOBALS['PBH_DEFERRED']);   // e-mails waiting to be sent: answer first, send afterwards
     if (is_modal()) {
         // the pop-up decides what to do: show the messages, or close and go to the next page
+        $json = json_encode(['ok' => true, 'redirect' => $path, 'flashes' => $GLOBALS['MODAL_FLASH'] ?? []], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($deferred) {
+            respond_early((string)$json);
+            run_deferred_tasks();
+            exit;
+        }
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store');
-        echo json_encode(['ok' => true, 'redirect' => $path, 'flashes' => $GLOBALS['MODAL_FLASH'] ?? []], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        echo $json;
+        exit;
+    }
+    if ($deferred) {
+        respond_early('', 'text/html; charset=utf-8', 302, ['Location' => $path]);
+        run_deferred_tasks();
         exit;
     }
     header('Location: ' . $path);
     exit;
+}
+
+/**
+ * Admin actions that send e-mails turn this on, so the e-mails are sent AFTER the landlord's page has
+ * already been answered (see notify_tenant and redirect). The landlord never waits for the mail server.
+ */
+function defer_notifications(): void
+{
+    $GLOBALS['PBH_DEFER_NOTIFY'] = true;
+}
+
+function defer_task(callable $fn): void
+{
+    $GLOBALS['PBH_DEFERRED'][] = $fn;
+}
+
+function run_deferred_tasks(): void
+{
+    $tasks = $GLOBALS['PBH_DEFERRED'] ?? [];
+    $GLOBALS['PBH_DEFERRED'] = [];
+    $GLOBALS['PBH_DEFER_NOTIFY'] = false;
+    foreach ($tasks as $fn) {
+        try {
+            $fn();
+        } catch (Throwable $e) {
+            error_log('[PBH] deferred task failed: ' . $e->getMessage());
+        }
+    }
+}
+
+/**
+ * Send the whole response to the visitor NOW and let the script keep running afterwards.
+ * Used so slow work (sending e-mails over SMTP) never makes the visitor wait.
+ * Nothing may be echoed after this. Sessions are released first so other requests are not blocked.
+ */
+function respond_early(string $body, string $contentType = 'application/json; charset=utf-8', int $status = 200, array $headers = []): void
+{
+    ignore_user_abort(true);
+    @set_time_limit(90);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    while (ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+    http_response_code($status);
+    header('Content-Type: ' . $contentType);
+    header('Cache-Control: no-store');
+    foreach ($headers as $name => $value) {
+        header($name . ': ' . $value);
+    }
+    header('Content-Length: ' . strlen($body));
+    header('Connection: close');
+    echo $body;
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return;
+    }
+    @ob_flush();
+    flush();
 }
 
 /** Only allow redirects to pages inside this site (prevents open redirects). */
@@ -345,42 +417,71 @@ function throttle_clear(string $kind, ?string $identifier = null): void
 /* ------------------------------------------------------------------
  *  Pagination
  * ------------------------------------------------------------------ */
-function paginate(int $total, int $perPage = 15): array
+function paginate(int $total, int $perPage = 15, string $key = 'page', string $anchor = '', bool $sizes = false): array
 {
+    if ($sizes) {
+        $want = get_int('per');
+        if (in_array($want, [5, 10, 20, 50], true)) {
+            $perPage = $want;
+        }
+    }
     $pages = max(1, (int)ceil($total / $perPage));
-    $page = min(max(1, get_int('page')), $pages);
-    return ['page' => $page, 'pages' => $pages, 'per' => $perPage, 'offset' => ($page - 1) * $perPage, 'total' => $total];
+    $page = min(max(1, get_int($key)), $pages);
+    return ['page' => $page, 'pages' => $pages, 'per' => $perPage, 'offset' => ($page - 1) * $perPage, 'total' => $total,
+            'key' => $key, 'anchor' => $anchor, 'sizes' => $sizes];
 }
 
+/** Page control: "Showing 1 to 15 of 120", numbered pages with first/last, and (optionally) rows per page. */
 function pager(array $p): string
 {
-    if ($p['pages'] <= 1) {
+    $key = $p['key'] ?? 'page';
+    $anchor = ($p['anchor'] ?? '') !== '' ? '#' . $p['anchor'] : '';
+    $showSizes = !empty($p['sizes']) && $p['total'] > 5;
+    if ($p['pages'] <= 1 && !$showSizes) {
         return '';
     }
     $qs = $_GET;
-    unset($qs['page']);
-    $mk = function (int $n, string $label, bool $active = false, bool $disabled = false) use ($qs): string {
-        if ($disabled) {
-            return '<span class="pg disabled">' . $label . '</span>';
-        }
-        $q = http_build_query(array_merge($qs, ['page' => $n]));
-        return '<a class="pg' . ($active ? ' active' : '') . '" href="?' . e($q) . '"' . ($active ? ' aria-current="page"' : '') . '>' . $label . '</a>';
+    unset($qs[$key]);
+    $link = function (array $extra) use ($qs, $anchor): string {
+        return '?' . e(http_build_query(array_merge($qs, $extra))) . $anchor;
     };
-    $out = '<nav class="pager" aria-label="Pages">';
-    $out .= $mk($p['page'] - 1, 'Previous', false, $p['page'] <= 1);
-    $start = max(1, $p['page'] - 2);
-    $end = min($p['pages'], $p['page'] + 2);
-    if ($start > 1) {
-        $out .= $mk(1, '1') . ($start > 2 ? '<span class="pg gap">…</span>' : '');
+    $mk = function (int $n, string $label, bool $active = false, bool $disabled = false, string $aria = '') use ($link, $key): string {
+        if ($disabled) {
+            return '<span class="pg disabled" aria-hidden="true">' . $label . '</span>';
+        }
+        return '<a class="pg' . ($active ? ' active' : '') . '" href="' . $link([$key => $n]) . '"' . ($active ? ' aria-current="page"' : '') . ($aria !== '' ? ' aria-label="' . e($aria) . '"' : '') . '>' . $label . '</a>';
+    };
+    $from = $p['total'] ? $p['offset'] + 1 : 0;
+    $to = min($p['total'], $p['offset'] + $p['per']);
+    $out = '<div class="pager-bar">';
+    $out .= '<p class="pager-info">Showing <strong>' . number_format($from) . '&ndash;' . number_format($to) . '</strong> of <strong>' . number_format($p['total']) . '</strong></p>';
+    if ($p['pages'] > 1) {
+        $out .= '<nav class="pager" aria-label="Pages">';
+        $out .= $mk(1, '&laquo;', false, $p['page'] <= 1, 'First page');
+        $out .= $mk($p['page'] - 1, 'Previous', false, $p['page'] <= 1);
+        $start = max(1, $p['page'] - 2);
+        $end = min($p['pages'], $p['page'] + 2);
+        if ($start > 1) {
+            $out .= $mk(1, '1') . ($start > 2 ? '<span class="pg gap">&hellip;</span>' : '');
+        }
+        for ($i = $start; $i <= $end; $i++) {
+            $out .= $mk($i, (string)$i, $i === $p['page'], false, 'Page ' . $i);
+        }
+        if ($end < $p['pages']) {
+            $out .= ($end < $p['pages'] - 1 ? '<span class="pg gap">&hellip;</span>' : '') . $mk($p['pages'], (string)$p['pages']);
+        }
+        $out .= $mk($p['page'] + 1, 'Next', false, $p['page'] >= $p['pages']);
+        $out .= $mk($p['pages'], '&raquo;', false, $p['page'] >= $p['pages'], 'Last page');
+        $out .= '</nav>';
     }
-    for ($i = $start; $i <= $end; $i++) {
-        $out .= $mk($i, (string)$i, $i === $p['page']);
+    if ($showSizes) {
+        $out .= '<div class="pager-size" role="group" aria-label="Rows per page"><span>Rows</span>';
+        foreach ([5, 10, 20, 50] as $n) {
+            $out .= '<a class="' . ($p['per'] === $n ? 'on' : '') . '" href="' . $link(['per' => $n]) . '"' . ($p['per'] === $n ? ' aria-current="true"' : '') . '>' . $n . '</a>';
+        }
+        $out .= '</div>';
     }
-    if ($end < $p['pages']) {
-        $out .= ($end < $p['pages'] - 1 ? '<span class="pg gap">…</span>' : '') . $mk($p['pages'], (string)$p['pages']);
-    }
-    $out .= $mk($p['page'] + 1, 'Next', false, $p['page'] >= $p['pages']);
-    return $out . '<span class="pager-info">' . number_format($p['total']) . ' records</span></nav>';
+    return $out . '</div>';
 }
 
 /* ------------------------------------------------------------------

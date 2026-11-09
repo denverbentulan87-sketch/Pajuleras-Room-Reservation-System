@@ -6,6 +6,7 @@ if (!is_post()) {
     redirect('admin/reservations.php');
 }
 csrf_verify();
+defer_notifications();   // e-mails go out after the page is answered, so nobody waits for the mail server
 
 $id = post_int('id');
 $action = post_str('action', 20);
@@ -50,26 +51,53 @@ try {
     switch ($action) {
         case 'confirm':
             $holdUntil = null;
-            with_locked_reservation($id, (int)$peek['room_id'], [], function ($res, $rooms) use (&$holdUntil) {
+            $askedMoveIn = post_str('move_in_date', 10);
+            $becameTenant = false;
+            with_locked_reservation($id, (int)$peek['room_id'], [], function ($res, $rooms) use (&$holdUntil, $askedMoveIn, &$becameTenant) {
                 require_status($res, ['pending'], 'confirmed');
                 $room = $rooms[(int)$res['room_id']] ?? null;
                 if (!$room) throw new RuleException('The room changed while you were working. Please try again.');
-                $tenant = fetch_one("SELECT status FROM tenants WHERE id = ?", [$res['tenant_id']]);
-                if (!$tenant || $tenant['status'] !== 'active') throw new RuleException('The tenant is inactive. Reactivate the tenant first.');
-                assert_capacity($room, $res['move_in_date'], $res['move_out_date'], (int)$res['beds'], (int)$res['id']);
-                // a bed that is not paid for is only held for a few days, then released automatically
-                $holdUntil = reservation_financials($res)['advance_needed'] > 0 ? hold_deadline() : null;
+                $tenant = fetch_one("SELECT id, full_name, status, anonymized_at FROM tenants WHERE id = ?", [$res['tenant_id']]);
+                if (!$tenant || $tenant['anonymized_at'] !== null) throw new RuleException('This tenant record was erased, so the reservation cannot be confirmed.');
+
+                // the move-in date is what the advance payment is due by, so it is always filled in
+                if ($askedMoveIn !== '' && !valid_date($askedMoveIn)) throw new RuleException('Enter a valid move-in date.');
+                $moveIn = inquiry_move_in_date($askedMoveIn !== '' ? $askedMoveIn : ($res['move_in_date'] ?: null));
+                if ($askedMoveIn !== '' && $askedMoveIn < today()) throw new RuleException('The move-in date cannot be in the past.');
+                if ($res['move_out_date'] && $res['move_out_date'] <= $moveIn) throw new RuleException('The planned move-out date (' . fmt_date($res['move_out_date']) . ') is not after the move-in date. Edit the reservation first.');
+
+                // the room must really be free for those dates
+                assert_capacity($room, $moveIn, $res['move_out_date'], (int)$res['beds'], (int)$res['id']);
+
+                // confirming registers the person as a tenant
+                if ($tenant['status'] !== 'active') {
+                    q("UPDATE tenants SET status = 'active' WHERE id = ?", [$tenant['id']]);
+                    log_activity('tenant_registered', 'tenant', (int)$tenant['id'], $tenant['full_name'] . ' registered as a tenant (reservation ' . $res['reservation_no'] . ' confirmed)');
+                    $becameTenant = true;
+                }
+                if ($res['inquiry_id']) {
+                    q("UPDATE inquiries SET status = 'converted' WHERE id = ? AND status <> 'closed'", [$res['inquiry_id']]);
+                }
+
+                $res['move_in_date'] = $moveIn;
+                q("UPDATE reservations SET move_in_date = ? WHERE id = ?", [$moveIn, $res['id']]);
+                // a bed that is not paid for is held until the move-in day, when the advance is due
+                $holdUntil = reservation_financials($res)['advance_needed'] > 0 ? hold_deadline($moveIn) : null;
                 q("UPDATE reservations SET status='confirmed', confirmed_at=NOW(), hold_until=? WHERE id=?", [$holdUntil, $res['id']]);
-                log_activity('reservation_confirmed', 'reservation', (int)$res['id'], $res['reservation_no'] . ' confirmed' . ($holdUntil ? ', held until ' . $holdUntil : ''));
+                log_activity('reservation_confirmed', 'reservation', (int)$res['id'], $res['reservation_no'] . ' confirmed, move-in ' . $moveIn . ($holdUntil ? ', advance due by then' : ''));
             });
-            $f = reservation_financials(fetch_one("SELECT * FROM reservations WHERE id = ?", [$id]));
+            $row = fetch_one("SELECT * FROM reservations WHERE id = ?", [$id]);
+            $f = reservation_financials($row);
             if ($holdUntil) {
-                flash('success', 'Reservation confirmed. The bed is held until ' . fmt_datetime($holdUntil) . '.');
-                flash('info', 'The tenant has until then to pay ' . money($f['advance_needed']) . '. If it is not paid, the hold ends and the bed is released automatically.');
+                flash('success', 'Reservation confirmed for move-in on ' . fmt_date($row['move_in_date']) . '. The bed is held for the tenant until then.');
+                flash('info', 'The advance of ' . money($f['advance_needed']) . ' is due on the move-in date. If it is not paid by then, the hold ends and the bed is released automatically.');
                 notify_reservation($id, 'reservation_held');
             } else {
-                flash('success', 'Reservation confirmed. The reservation amount is already paid, so the bed is secured.');
+                flash('success', 'Reservation confirmed. The advance is already paid, so the bed is secured for ' . fmt_date($row['move_in_date']) . '.');
                 notify_reservation($id, 'reservation_secured', [], true);
+            }
+            if ($becameTenant) {
+                flash('info', 'The person is now registered as a tenant.');
             }
             break;
 
