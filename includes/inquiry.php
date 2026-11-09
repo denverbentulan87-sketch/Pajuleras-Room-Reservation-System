@@ -1,26 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * What happens the moment someone sends an inquiry:
- *  1. The system checks the room they asked about (open bed? right gender? under repair?)
- *     for their move-in date and writes an automatic reply:
- *        - confirmed : the room has an open bed -> "Confirmed. Approach me personally for more information."
- *        - full      : the room cannot take them (full, reserved, repair or other gender)
- *        - info      : they did not choose a room, so we list rooms with open beds
- *  2. ONLY when the room is confirmed, and straight after that reply:
- *        a. the person is registered as a tenant from what they typed (or matched to the
- *           tenant who already has that contact number),
- *        b. a PENDING reservation is recorded for them (only when they are new: a number we already know is
- *           never given reservation details, so nobody can read another person's reservation by typing their number). It carries the MOVE-IN DATE (the date they
- *           asked for, or one month after the inquiry when they gave none) and the reservation number
- *           they use to pay (GCash first) and to receive reminders.
- *     NOTE: a pending reservation never holds a bed. A bed is only held when the landlord confirms the
- *     reservation, or automatically when the advance payment is approved, so nobody can block rooms by
- *     sending inquiries.
- *  3. When the move-in date gets close the reminders in includes/reminders.php e-mail the tenant and
- *     prepare the Messenger message.
- */
 
 /** The move-in date the system records: the date asked for, otherwise one month after today. */
 function inquiry_move_in_date(?string $asked): string

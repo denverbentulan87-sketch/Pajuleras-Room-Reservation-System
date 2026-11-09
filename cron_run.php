@@ -1,8 +1,4 @@
 <?php
-/**
- * Runs the payment reminders. Open it from a scheduled task, an uptime/cron service,
- * or let the website call it for you (see README). Protected by a secret token.
- */
 require __DIR__ . '/includes/bootstrap.php';
 ignore_user_abort(true);
 set_time_limit(120);

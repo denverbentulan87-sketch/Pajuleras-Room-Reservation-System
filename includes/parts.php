@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/** True when the landlord uploaded a photo for this room. */
 function room_has_photo(array $r): bool
 {
     return !empty($r['photo']) && is_file(APP_ROOT . '/uploads/rooms/' . basename((string)$r['photo']));

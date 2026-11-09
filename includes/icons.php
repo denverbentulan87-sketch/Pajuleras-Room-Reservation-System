@@ -1,10 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Inline SVG icon set (24x24, drawn with strokes in the current text colour).
- * No external files, so icons work offline and under the strict CSP.
- */
 function icon(string $name, string $class = ''): string
 {
     static $paths = [

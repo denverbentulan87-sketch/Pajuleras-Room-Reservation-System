@@ -1,9 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/* Pop-up forms (inquiry, GCash payment) and the chat assistant.
-   Each form also works as a normal page (inquire.php, gcash_pay.php) when JavaScript is off. */
-
 /** Fields of the GCash payment report form. $p makes element ids unique per copy of the form. */
 function gcash_pay_fields(string $p, array $old = []): string
 {

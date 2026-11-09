@@ -1,7 +1,5 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
-
-/** Human-friendly reference code, e.g. K7M2-9QXA (no 0/O/1/I/L to avoid mix-ups). */
 function new_ref_code(): string
 {
     $alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';

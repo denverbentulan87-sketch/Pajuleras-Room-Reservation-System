@@ -1,18 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Messages to tenants (rent reminders, GCash decisions, inquiry replies).
- *
- * Channels:
- *   1. E-mail    - sent automatically through your SMTP account (config/config.php > 'mail')
- *   2. Messenger - prepared in Admin > Payment reminders with a one-tap button. Facebook
- *                  does not allow automatic Messenger messages without an approved app.
- *   When e-mail is not set up (or fails), or the tenant has no e-mail, the message is
- *   prepared there for one-tap Messenger, e-mail, or a call.
- * Every attempt is written to the `notifications` table, so the landlord can
- * always see what was sent, to whom, and whether it worked.
- */
 
 function public_base_url(): string
 {

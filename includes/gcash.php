@@ -1,13 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Online GCash payments.
- * A tenant sends money to the landlord's GCash number, then reports it here
- * (reservation number + contact number prove who they are). Nothing counts
- * toward a balance until the landlord checks it and approves it in
- * Admin > GCash payments, which creates the normal payment and receipt.
- */
 
 const GCASH_MAX_AMOUNT = 50000;
 

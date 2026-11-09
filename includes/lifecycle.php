@@ -1,20 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * The reservation process, modelled on how boarding houses and dormitories really work:
- *
- *   Inquiry -> Reservation -> BED HELD for a few days -> reservation amount paid (bed SECURED)
- *           -> Move-in (collect deposit + rest of the first month, check the room)
- *           -> Monthly rent on the move-in date, reminders when late
- *           -> Move-out notice (30 days) -> Move-out: room check, deposit settled and returned
- *
- *  - A held bed that is not paid for in time is released automatically, so beds never stay
- *    blocked by someone who never paid.
- *  - Paying the reservation amount confirms the reservation by itself (no extra clicking).
- *  - A reservation fee can be set in Settings; it counts toward the first month's rent.
- *  - The deposit is settled at move-out: unpaid rent and damages are deducted, the rest is returned.
- */
 
 function lifecycle_settings(): array
 {

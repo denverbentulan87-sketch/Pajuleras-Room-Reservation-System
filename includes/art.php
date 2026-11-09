@@ -1,11 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Inline SVG illustrations (no image files, no external requests).
- * Colours use the site palette. $p is a unique id prefix so the same
- * illustration can appear more than once on a page.
- */
 
 /** The boarding house: tin roof, wooden wall, door, windows and plants. */
 function art_house(string $p = 'h', string $label = 'Illustration of the boarding house with a tin roof, a wooden door and green plants'): string

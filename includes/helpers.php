@@ -4,9 +4,6 @@ declare(strict_types=1);
 /** Thrown for business-rule failures (shown to the user, not logged as errors). */
 class RuleException extends Exception {}
 
-/* ------------------------------------------------------------------
- *  Output & formatting
- * ------------------------------------------------------------------ */
 function e($v): string
 {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

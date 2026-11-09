@@ -1,16 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * The website chat assistant.
- *
- * It answers from the same information the public website already shows
- * (Settings, rooms, rates, requirements, rules, payment details, landlord
- * contact), read live from the database, so answers stay current when the
- * landlord edits anything. It runs on this server only: no outside service,
- * no API key. It never reveals passwords, tenant records or financial
- * reports.
- */
 
 /** Everything the assistant is allowed to talk about. */
 function chatbot_knowledge(): array

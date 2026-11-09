@@ -1,11 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Loaded first by every page: config, time zone, sessions, security
- * headers, error handling, database and shared helpers.
- */
-
 define('APP_ROOT', dirname(__DIR__));
 $GLOBALS['PBH_CONFIG'] = require APP_ROOT . '/config/config.php';
 // Private, per-server settings (database password, e-mail password, public address) live in

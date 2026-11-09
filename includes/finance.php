@@ -1,20 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Billing rules (kept simple and transparent for a boarding house):
- *
- *  - Rent is billed monthly IN ADVANCE.  Each started month is one
- *    "cycle".  The first cycle starts on the check-in date (or, before
- *    check-in, on the planned move-in date).
- *  - Amount due  = security deposit + monthly rent x cycles started.
- *  - Amount paid = advance payments + deposit payments + rent payments
- *                  (voided payments and refunds are not counted).
- *  - Balance     = due - paid.  A negative balance is a credit
- *                  (the tenant paid ahead).
- *  - Refunds (e.g. returning the deposit) are tracked separately and do
- *    not create a balance.
- */
 
 function add_months_clamped(string $date, int $months): string
 {

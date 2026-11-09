@@ -1,11 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Validate and store an uploaded room photo.
- * Returns the stored file name, or null when nothing was uploaded.
- * Throws RuleException with a readable message when the file is not acceptable.
- */
 function store_room_photo(array $file, string $prefix = 'room'): ?string
 {
     if (!isset($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {

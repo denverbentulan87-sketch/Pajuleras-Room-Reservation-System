@@ -1,10 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Authentication for the ONE administrator account.
- * Customers/tenants never log in - they only browse and send inquiries.
- */
 
 function is_admin(): bool
 {

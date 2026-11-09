@@ -1,16 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Rent due dates and payment reminders.
- *
- * Rent is billed monthly in advance, so a tenant who moved in on the 5th
- * pays again on the 5th of every month (see includes/finance.php). From
- * those dates this file works out, for every tenant:
- *   - the payment schedule (what is due on which date, and whether it is paid),
- *   - whether a payment is coming up, due today, missing, or only partly paid,
- *   - which reminder to send, once, without ever repeating the same one.
- */
 
 function days_between(string $from, string $to): int
 {

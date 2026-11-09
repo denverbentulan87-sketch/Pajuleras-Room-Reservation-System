@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/* Shared by the "Check my inquiry" page (track.php) and its pop-up. */
-
 const TRACK_MINUTES = 30;
 const MAX_MESSAGES_PER_INQUIRY = 40;
 
@@ -26,11 +24,6 @@ function tracked_inquiry(): ?array
         return null;
     }
 }
-
-/**
- * The conversation: status, messages and the follow-up form.
- * $modal = true adds a heading and marks the forms so the pop-up can send them without reloading.
- */
 function track_thread_html(array $inq, array $errors = [], bool $modal = false): string
 {
     $messages = fetch_all("SELECT * FROM inquiry_messages WHERE inquiry_id = ? ORDER BY created_at, id", [$inq['id']]);

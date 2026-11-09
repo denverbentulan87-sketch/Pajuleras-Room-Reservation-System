@@ -1,17 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Room availability & overlap protection.
- *
- * A reservation HOLDS beds only when its status is 'confirmed' or
- * 'checked_in'.  Pending reservations hold nothing.
- *
- * A stay occupies the half-open date range [move_in_date, move_out_date).
- * A blank move_out_date means "open-ended / long-term".
- * Because the range is half-open, a new tenant may move in on the very
- * day another tenant moves out.
- */
 
 const OPEN_END = '9999-12-31';
 
