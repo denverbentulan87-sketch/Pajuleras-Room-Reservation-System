@@ -189,3 +189,21 @@ Styles live in the last block of `assets/css/admin.css`. The dashboard (`admin/i
 
 * **GCash QR code:** open **GCash** in the sidebar and use the QR panel at the top to add, replace, download or remove your QR code (JPG, PNG or WebP, up to 3 MB). Tenants then see it next to your GCash number in the Pay with GCash pop-up and on the Pay with GCash page, so they can scan and pay.
 * The table pages (inquiries, reservations, tenants, payments, GCash, reminders, rooms, reports, settings, activity) now use the whole content area: wider columns, a search box that stretches, and the page controls at the bottom of the panel.
+
+## Before you put the site online (go-live checklist)
+
+1. **Secrets stay private.** Your e-mail account and database password go in `config/config.local.php` (it overrides `config/config.php` and is listed in `.gitignore`). Never upload that file to a public repository.
+2. **Replace the Gmail App Password if it was ever on GitHub.** An earlier version of `config.php` contained it. In your Google account, delete that App Password and create a new one, then paste the new one in `config/config.local.php`.
+3. **Database:** do not use MySQL `root` with an empty password online. Create a database user with a strong password and set it under `'db'` in `config/config.local.php`.
+4. **Set `'public_url'`** (for example `'https://yourdomain.com'`) in `config/config.local.php`, so links in e-mails and the background reminder check always use your real address.
+5. **Use HTTPS.** Enable the free certificate from your host. The site then sends `Strict-Transport-Security` and secure cookies automatically.
+6. **Change the default admin password** on first sign-in (the system forces this) and keep `'debug' => false`.
+7. **Apache:** the `.htaccess` files block `config/`, `includes/`, `database/` and `cron/` from the web and stop PHP running in `uploads/`. If your host uses Nginx instead, add equivalent `deny` rules for those folders and for `*.sql`, `*.md` and `.git`.
+8. **Delete test data** (sample tenants, test payments, test GCash screenshots in `uploads/gcash/`) before going live.
+9. **Reminders:** add the daily scheduled task shown in Admin > Settings > Reminders.
+
+### Security measures in this version
+- Prepared SQL statements everywhere, CSRF token on every form, output escaping, strict sessions (HttpOnly, SameSite, idle timeout, ID regenerated at sign-in).
+- Sign-in lockout per user name and per visitor address; throttles on inquiries, GCash reports, tracking and chat.
+- Private GCash screenshots are only served to the signed-in landlord. Uploads are checked by real file type and size.
+- Admin pages are never cached. The background reminder check no longer sends its secret token to an address taken from the visitor's request.

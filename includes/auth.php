@@ -59,7 +59,8 @@ function admin_login(string $username, string $password): array
     $mins = (int)cfg('login_lock_minutes', 15);
     $ident = mb_strtolower($username);
 
-    if (throttle_count('login', $mins, $ident) >= $max) {
+    // limit per username AND overall per visitor address, so guessing with many different user names does not help
+    if (throttle_count('login', $mins, $ident) >= $max || throttle_count('login', $mins) >= $max * 4) {
         return [false, 'Too many failed attempts. Please wait ' . $mins . ' minutes and try again.'];
     }
     $admin = fetch_one("SELECT * FROM admin WHERE id = 1");

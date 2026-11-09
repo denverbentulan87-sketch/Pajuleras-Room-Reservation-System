@@ -402,7 +402,8 @@ table.plain th, table.plain td { border-bottom: 1px solid var(--line); }
 .fab-login .ic { width: 1.1rem; height: 1.1rem; }
 @keyframes gcash-ring { 0%, 100% { box-shadow: 0 14px 30px -10px rgba(11,87,196,.75), 0 0 0 0 rgba(42,123,228,.4); } 50% { box-shadow: 0 14px 30px -10px rgba(11,87,196,.75), 0 0 0 9px rgba(42,123,228,0); } }
 @keyframes fab-ring { 0%, 100% { box-shadow: 0 14px 30px -10px rgba(18,55,42,.7), 0 0 0 0 rgba(31,90,67,.35); } 50% { box-shadow: 0 14px 30px -10px rgba(18,55,42,.7), 0 0 0 9px rgba(31,90,67,0); } }
-.to-top { bottom: 9.3rem; right: 1.35rem; }
+.to-top { bottom: 13.2rem; right: 1.35rem; }
+.fab-dock.dock-slim ~ .to-top { bottom: 5.6rem; }
 
 .foot-cta-wrap { padding-top: 2.4rem; }
 .foot-cta { display: flex; align-items: center; justify-content: space-between; gap: 1.2rem 2rem; flex-wrap: wrap; padding: 1.4rem 1.6rem; border-radius: 20px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16); transition: background .3s, transform .3s var(--ease); }

@@ -4,3 +4,19 @@ DirectoryIndex index.php
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
 </IfModule>
+# Never serve source, backups, logs, SQL dumps or git data
+<FilesMatch "(^\.|\.(sql|md|log|bak|old|orig|ini|sh|rar|zip|dist)$|^composer\.)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+<FilesMatch "^\.htaccess$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</FilesMatch>
+RedirectMatch 404 /\.git

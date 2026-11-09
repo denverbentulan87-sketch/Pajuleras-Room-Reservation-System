@@ -8,6 +8,11 @@ declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
 $GLOBALS['PBH_CONFIG'] = require APP_ROOT . '/config/config.php';
+// Private, per-server settings (database password, e-mail password, public address) live in
+// config/config.local.php. It overrides config.php and is never committed to git.
+if (is_file(APP_ROOT . '/config/config.local.php')) {
+    $GLOBALS['PBH_CONFIG'] = array_replace_recursive($GLOBALS['PBH_CONFIG'], (array)require APP_ROOT . '/config/config.local.php');
+}
 
 function cfg(string $key, $default = null)
 {
@@ -104,6 +109,18 @@ session_start();
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+header('Cross-Origin-Opener-Policy: same-origin');
+header('X-Permitted-Cross-Domain-Policies: none');
+if ($https) {
+    header('Strict-Transport-Security: max-age=15552000');
+}
+// Pages that show private data (the admin area, receipts, payment proofs) must never be cached or kept by the browser's back button.
+if (basename(dirname($_SERVER['SCRIPT_NAME'] ?? '')) === 'admin') {
+    header('Cache-Control: no-store, no-cache, must-revalidate, private');
+    header('Pragma: no-cache');
+    header('X-Robots-Tag: noindex, nofollow');
+}
 header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'");
 
 require_once __DIR__ . '/db.php';

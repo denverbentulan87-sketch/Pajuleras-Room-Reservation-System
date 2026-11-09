@@ -43,14 +43,15 @@ return [
     // Reminders always work: when e-mail is not set up below, the system prepares
     // each message in Admin > Payment reminders so you can send it with one tap
     // (Messenger, e-mail or a call). Fill this in to have e-mails sent automatically.
+    // Put your real e-mail account in config/config.local.php (kept private, never uploaded to git).
     'mail' => [
         'host'       => 'smtp.gmail.com',          // e.g. 'smtp.gmail.com'
         'port'       => 587,         // 587 with 'tls', 465 with 'ssl'
         'secure'     => 'tls',       // 'tls' (STARTTLS), 'ssl' or '' (none)
-        'user'       => 'pajulerasbh@gmail.com',          // your full e-mail address
-        'pass'       => 'etzknmxomwdtjtay',          // for Gmail use an App Password, never your normal password
-        'from_email' => 'pajulerasbh@gmail.com',          // defaults to 'user'
-        'from_name'  => 'Pajuleras Boarding House System',          // defaults to the boarding house name
+        'user'       => '',          // your full e-mail address
+        'pass'       => '',          // for Gmail use an App Password, never your normal password
+        'from_email' => '',          // defaults to 'user'
+        'from_name'  => '',          // defaults to the boarding house name
         'verify_tls' => true,
     ],
 

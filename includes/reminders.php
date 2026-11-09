@@ -336,16 +336,31 @@ function trigger_reminders_async(): void
         if (!reminder_settings()['enabled'] || (time() - (int)setting('reminders_last_run', '0')) < 6 * 3600) {
             return;
         }
-        $base = public_base_url();
-        $p = $base !== '' ? parse_url($base) : false;
-        if (!$p || empty($p['host'])) {
-            return;
+        // The secret token must never be sent to an address chosen by the visitor (a forged Host header).
+        // Use the configured public_url; without one, call this same server over the loopback address.
+        $configured = rtrim((string)cfg('public_url', ''), '/');
+        if ($configured !== '') {
+            $p = parse_url($configured);
+            if (!$p || empty($p['host'])) {
+                return;
+            }
+            $ssl = ($p['scheme'] ?? 'http') === 'https';
+            $connect = ($ssl ? 'ssl://' : '') . $p['host'];
+            $port = (int)($p['port'] ?? ($ssl ? 443 : 80));
+            $hostHeader = $p['host'] . (isset($p['port']) ? ':' . $p['port'] : '');
+            $path = rtrim((string)($p['path'] ?? ''), '/');
+        } else {
+            if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+                return;   // set 'public_url' in config to use this on an https site
+            }
+            $connect = '127.0.0.1';
+            $port = (int)($_SERVER['SERVER_PORT'] ?? 80);
+            $hostHeader = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+            $path = rtrim(base_url(), '/');
         }
-        $ssl = ($p['scheme'] ?? 'http') === 'https';
-        $fp = @fsockopen(($ssl ? 'ssl://' : '') . $p['host'], (int)($p['port'] ?? ($ssl ? 443 : 80)), $en, $es, 1.0);
+        $fp = @fsockopen($connect, $port, $en, $es, 1.0);
         if ($fp) {
-            $path = rtrim((string)($p['path'] ?? ''), '/') . '/cron_run.php?token=' . cron_token();
-            @fwrite($fp, "GET $path HTTP/1.1\r\nHost: {$p['host']}" . (isset($p['port']) ? ':' . $p['port'] : '') . "\r\nConnection: Close\r\n\r\n");
+            @fwrite($fp, "GET {$path}/cron_run.php?token=" . cron_token() . " HTTP/1.1\r\nHost: {$hostHeader}\r\nConnection: Close\r\n\r\n");
             @fclose($fp);
         }
     } catch (Throwable $e) {
