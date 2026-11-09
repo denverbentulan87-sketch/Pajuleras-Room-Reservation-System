@@ -58,10 +58,17 @@ $msgBody = ($msgState && $msgState['state'] !== 'ok')
   <div class="action-row">
     <?= messenger_button($v, $msgBody, 'Message on Messenger') ?>
     <?php if ($st === 'pending'): ?>
-      <form method="post" action="<?= e(url('admin/reservation_action.php')) ?>">
-        <?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="confirm">
-        <button class="btn btn-primary" type="submit">Confirm and hold the bed</button>
-      </form>
+      <?php $confirmDate = ($v['move_in_date'] && $v['move_in_date'] >= today()) ? $v['move_in_date'] : add_months_clamped(today(), 1); ?>
+      <details class="action-box">
+        <summary class="btn btn-primary">Confirm reservation</summary>
+        <form method="post" action="<?= e(url('admin/reservation_action.php')) ?>" class="form mini">
+          <?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="confirm">
+          <p class="m-sub">Room <?= e($v['room_no']) ?> is checked for these dates when you confirm. <?= e($v['full_name']) ?> is registered as a tenant, the bed is held, and the advance of <strong><?= e(money($f['advance_needed'])) ?></strong> is due on the move-in date.</p>
+          <label>Move-in date <span class="req">*</span><input type="date" name="move_in_date" value="<?= e($confirmDate) ?>" min="<?= e(today()) ?>" required></label>
+          <p class="hint">Prefilled with <?= $v['move_in_date'] && $v['move_in_date'] >= today() ? 'the requested date' : 'one month from today' ?>. Change it if the tenant agreed to another day.</p>
+          <div class="form-actions"><button class="btn btn-primary" type="submit">Confirm reservation</button><button class="btn" type="button" data-cancel>Not yet</button></div>
+        </form>
+      </details>
     <?php elseif ($st === 'confirmed'): ?>
     <details class="action-box">
       <summary class="btn btn-primary">Check in tenant</summary>

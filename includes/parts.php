@@ -26,6 +26,16 @@ function house_photo_url(): string
     return '';
 }
 
+/** URL of the GCash QR code the landlord uploaded, or '' when none. */
+function gcash_qr_url(): string
+{
+    $f = basename(setting('gcash_qr'));
+    if ($f !== '' && preg_match('/^house_[a-f0-9]{16}\.(jpg|png|webp)$/', $f) && is_file(APP_ROOT . '/uploads/rooms/' . $f)) {
+        return url('uploads/rooms/' . rawurlencode($f));
+    }
+    return '';
+}
+
 /** A photo that zooms on hover, follows the pointer and opens full screen on click or tap. */
 function zoom_photo(string $src, string $alt, int $w = 1400, int $h = 900, bool $eager = false): string
 {

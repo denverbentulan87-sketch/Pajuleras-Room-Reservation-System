@@ -101,12 +101,12 @@ function smtp_send(string $to, string $subject, string $body, ?string &$error = 
     $ctx = stream_context_create(['ssl' => [
         'verify_peer' => (bool)$c['verify_tls'], 'verify_peer_name' => (bool)$c['verify_tls'], 'SNI_enabled' => true, 'peer_name' => $host,
     ]]);
-    $fp = @stream_socket_client(($secure === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $port, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $ctx);
+    $fp = @stream_socket_client(($secure === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $port, $errno, $errstr, 8, STREAM_CLIENT_CONNECT, $ctx);
     if (!$fp) {
         $error = 'Could not connect to the mail server (' . $errstr . ').';
         return false;
     }
-    stream_set_timeout($fp, 15);
+    stream_set_timeout($fp, 10);
     try {
         [$code, $text] = smtp_read($fp);
         if ($code !== 220) {
@@ -188,6 +188,13 @@ function notification_log(array $row): int
  */
 function notify_tenant(?array $tenant, string $type, array $msg, array $opts = []): array
 {
+    if (!empty($GLOBALS['PBH_DEFER_NOTIFY'])) {
+        // an admin action is running: send after the landlord's page has been answered (checks and logging happen then)
+        defer_task(function () use ($tenant, $type, $msg, $opts) {
+            notify_tenant($tenant, $type, $msg, $opts);
+        });
+        return ['status' => 'queued', 'channel' => '', 'note' => 'Will be sent in a moment.'];
+    }
     $dedupe = (string)($opts['dedupe'] ?? '');
     $base = ['tenant_id' => $tenant['id'] ?? null, 'reservation_id' => $opts['reservation_id'] ?? null, 'inquiry_id' => $opts['inquiry_id'] ?? null,
         'type' => $type, 'subject' => $msg['subject'] ?? null, 'dedupe_key' => $dedupe !== '' ? $dedupe : null];
@@ -209,7 +216,9 @@ function notify_tenant(?array $tenant, string $type, array $msg, array $opts = [
         $err = null;
         if (smtp_send($email, (string)($msg['subject'] ?? setting('site_name')), (string)$msg['body'], $err)) {
             notification_log($base + ['channel' => 'email', 'recipient' => $email, 'body' => $msg['body'], 'status' => 'sent']);
-            return ['status' => 'sent', 'channel' => 'email', 'note' => 'E-mailed to ' . $email];
+            // some notices go out on BOTH channels: the e-mail is sent now, the Messenger copy is prepared for one tap
+            $queued = !empty($opts['messenger_too']) && notify_messenger_copy($base, $tenant, $msg, $dedupe);
+            return ['status' => 'sent', 'channel' => 'email', 'note' => 'E-mailed to ' . $email . ($queued ? ' and the Messenger message is ready to send' : '')];
         }
         notification_log($base + ['channel' => 'email', 'recipient' => $email, 'body' => $msg['body'], 'status' => 'failed', 'error' => $err]);
         $failedNote = 'E-mail failed. ';
@@ -224,6 +233,25 @@ function notify_tenant(?array $tenant, string $type, array $msg, array $opts = [
     }
     notification_log($base + ['channel' => 'manual', 'recipient' => $email !== '' ? $email : ($phone !== '' ? $phone : null), 'body' => $msg['body'], 'status' => 'manual', 'error' => $failedNote !== '' ? trim($failedNote) : null]);
     return ['status' => 'manual', 'channel' => 'manual', 'note' => 'Ready to send by hand in Admin > Reminders.'];
+}
+
+/**
+ * Prepare the Messenger copy of a message that was also e-mailed. Facebook does not let a website message people
+ * by itself, so it waits in Admin > Payment reminders > "To send by hand" with a one-tap Messenger button.
+ * Nothing is prepared when the tenant gave no usable Messenger name. Never prepared twice for the same notice.
+ */
+function notify_messenger_copy(array $base, ?array $tenant, array $msg, string $dedupe): bool
+{
+    $h = messenger_handle((string)($tenant['messenger'] ?? ''));
+    if ($h === null) {
+        return false;
+    }
+    $key = $dedupe !== '' ? mb_substr($dedupe, 0, 112) . ':messenger' : null;
+    if ($key !== null && fetch_val("SELECT 1 FROM notifications WHERE dedupe_key = ? LIMIT 1", [$key])) {
+        return false;
+    }
+    notification_log(array_merge($base, ['channel' => 'messenger', 'recipient' => $h, 'body' => $msg['body'], 'status' => 'manual', 'dedupe_key' => $key]));
+    return true;
 }
 
 /** "juan.delacruz", "facebook.com/juan.delacruz" or "https://m.me/juan.delacruz" -> "juan.delacruz" (null when it cannot be used) */

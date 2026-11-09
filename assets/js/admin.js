@@ -6,7 +6,7 @@
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var MODAL_RE = /\/admin\/(room_form|tenant_form|reservation_form|payment_form)\.php(\?|#|$)/;
+  var MODAL_RE = /\/admin\/(room_form|tenant_form|reservation_form|payment_form)\.php(\?|#|$)|\/admin\/settings\.php\?(?:[^#]*&)?edit=/;
   var HEAD = { 'X-Modal': '1', 'X-Requested-With': 'fetch', 'Accept': 'text/html,application/json' };
   var canDialog = typeof HTMLDialogElement === 'function';
 
@@ -48,7 +48,7 @@
     dlg = document.createElement('dialog');
     dlg.className = 'amodal';
     dlg.setAttribute('aria-labelledby', 'am-title');
-    dlg.innerHTML = '<div class="am-shell"><header class="am-head"><h2 id="am-title" class="am-title"></h2>' +
+    dlg.innerHTML = '<div class="am-shell"><header class="am-head"><span class="am-ic" aria-hidden="true"></span><h2 id="am-title" class="am-title"></h2>' +
       '<button type="button" class="am-close" data-am-close aria-label="Close">\u00d7</button></header><div class="am-body" tabindex="-1"></div></div>';
     document.body.appendChild(dlg);
     body = $('.am-body', dlg); titleEl = $('.am-title', dlg);
@@ -67,6 +67,8 @@
     var frag = $('.mfrag', holder);
     if (!frag) { body.innerHTML = '<div class="flash flash-error"><span>Sorry, this could not be loaded. Please try again.</span></div>'; return; }
     titleEl.textContent = title || frag.getAttribute('data-mtitle') || '';
+    var icSrc = $('.mf-ic', frag), icBox = $('.am-ic', dlg);
+    if (icSrc && icBox) { icBox.innerHTML = icSrc.innerHTML; icBox.hidden = false; icSrc.remove(); }
     body.innerHTML = frag.innerHTML;
     body.scrollTop = 0;
     initForms(body);
@@ -76,6 +78,7 @@
   function openShell(title) {
     ensureDialog();
     titleEl.textContent = title || '';
+    var ib = $('.am-ic', dlg); if (ib) { ib.hidden = true; ib.className = 'am-ic'; }
     loading();
     if (!dlg.open) { dlg.showModal(); }
   }
@@ -104,13 +107,17 @@
       body.innerHTML = '<div class="flash flash-error"><span>We could not reach the server. Please check your connection and try again.</span></div>';
     });
   }
-  function openClone(title, html, action) {
+  function openClone(title, html, action, cls) {
     if (!canDialog) { return; }
     openShell(title);
     baseUrl = action || window.location.href;
     var holder = document.createElement('div');
-    holder.innerHTML = '<div class="mfrag" data-mtitle="">' + html + '</div>';
+    var danger = /danger/.test(cls || '');
+    var svg = danger ? '<svg viewBox="0 0 24 24" class="ic"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>'
+                     : '<svg viewBox="0 0 24 24" class="ic"><path d="M20 6L9 17l-5-5"/></svg>';
+    holder.innerHTML = '<div class="mfrag" data-mtitle=""><span class="mf-ic" hidden>' + svg + '</span>' + html + '</div>';
     setContent(holder.innerHTML, title);
+    var ib = $('.am-ic', dlg); if (ib) { ib.classList.toggle('is-danger', danger); }
   }
   function showInline(list) {
     var box = $('.am-msg', body);
@@ -123,7 +130,7 @@
     if (busy) { return; }
     busy = true;
     var btn = submitter || $('button[type=submit]', form);
-    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
+    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); btn.setAttribute('data-label', btn.textContent); btn.textContent = 'Saving\u2026'; }
     var fd = new FormData(form);
     if (submitter && submitter.name) { fd.append(submitter.name, submitter.value); }
     var action = form.getAttribute('action');
@@ -138,7 +145,7 @@
       showInline([{ msg: 'We could not reach the server. Please check your connection and try again.' }]);
     }).then(function () {
       busy = false;
-      if (btn && btn.isConnected) { btn.disabled = false; btn.classList.remove('is-loading'); }
+      if (btn && btn.isConnected) { btn.disabled = false; btn.classList.remove('is-loading'); if (btn.getAttribute('data-label')) { btn.textContent = btn.getAttribute('data-label'); } }
     });
   }
 
@@ -151,7 +158,7 @@
       cdlg = document.createElement('dialog');
       cdlg.className = 'aconfirm';
       cdlg.setAttribute('aria-labelledby', 'ac-title');
-      cdlg.innerHTML = '<div class="ac-shell"><h2 id="ac-title" class="ac-title"></h2><p class="ac-msg"></p><div class="ac-actions"><button type="button" class="btn" data-ac="no">Cancel</button><button type="button" class="btn btn-danger" data-ac="yes">Confirm</button></div></div>';
+      cdlg.innerHTML = '<div class="ac-shell"><span class="ac-ic" aria-hidden="true"><svg viewBox="0 0 24 24" class="ic"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg></span><h2 id="ac-title" class="ac-title"></h2><p class="ac-msg"></p><div class="ac-actions"><button type="button" class="btn" data-ac="no">Cancel</button><button type="button" class="btn btn-danger" data-ac="yes">Confirm</button></div></div>';
       document.body.appendChild(cdlg);
       cdlg.addEventListener('click', function (e) { if (e.target === cdlg) { cdlg.close('no'); } });
     }
@@ -160,6 +167,7 @@
     var yes = $('[data-ac=yes]', cdlg), no = $('[data-ac=no]', cdlg);
     yes.textContent = opts.confirm || 'Yes, continue';
     yes.className = 'btn ' + (opts.danger === false ? 'btn-primary' : 'btn-danger');
+    cdlg.classList.toggle('is-safe', opts.danger === false);
     var finish = function (v) { cdlg.removeEventListener('close', onClose); yes.onclick = no.onclick = null; if (cdlg.open) { cdlg.close(v); } done(v === 'yes'); };
     var onClose = function () { yes.onclick = no.onclick = null; cdlg.removeEventListener('close', onClose); done(false); };
     yes.onclick = function () { finish('yes'); };
@@ -192,7 +200,7 @@
         var title = sum ? sum.textContent.trim() : act.textContent.trim();
         if (sum) { sum.remove(); }
         var f = $('form', copy);
-        openClone(title, copy.innerHTML, f ? f.getAttribute('action') : '');
+        openClone(title, copy.innerHTML, f ? f.getAttribute('action') : '', act.className);
       }
     }
   });
@@ -385,4 +393,17 @@
     });
     gsBox.addEventListener('click', function (e) { if (e.target.closest('a.gs-item')) { hideResults(); } });
   }
+
+  /* picture preview for file inputs inside pages and pop-ups */
+  document.addEventListener('change', function (e) {
+    var inp = e.target;
+    if (!inp || !inp.matches || !inp.matches('input[type=file][data-preview]')) { return; }
+    var box = inp.form ? inp.form.querySelector('.qr-preview') : null;
+    if (!box) { return; }
+    var f = inp.files && inp.files[0];
+    if (!f || !/^image\//.test(f.type)) { box.hidden = true; return; }
+    var img = box.querySelector('img'), rd = new FileReader();
+    rd.onload = function () { img.src = String(rd.result); box.hidden = false; };
+    rd.readAsDataURL(f);
+  });
 })();

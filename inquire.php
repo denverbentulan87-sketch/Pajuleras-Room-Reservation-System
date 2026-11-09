@@ -65,7 +65,7 @@ if (is_post()) {
     $phone = normalize_phone($OLD['contact_no']);
     if (mb_strlen($OLD['name']) < 2) $errors[] = 'Please enter your full name.';
     if (!valid_phone($phone)) $errors[] = 'Please enter a valid contact number (digits only, for example 09123456789).';
-    if ($OLD['email'] !== '' && !valid_email($OLD['email'])) $errors[] = 'The email address does not look right. Leave it blank if you do not have one.';
+    if (!valid_email($OLD['email'])) $errors[] = 'Please enter a valid e-mail address. Your room confirmation, payment details and move-in reminders are sent there.';
     if (!in_array($OLD['occupation'], ['student', 'employee', 'other', ''], true)) $errors[] = 'Please choose one of the options for "I am a".';
     if (!in_array($OLD['gender'], ['male', 'female'], true)) $errors[] = 'Please choose your gender. Some rooms are for men only or women only.';
     if ($OLD['consent'] !== '1') $errors[] = 'Please tick the box to agree that the boarding house may keep your details to answer your inquiry.';
@@ -88,49 +88,60 @@ if (is_post()) {
     if (!$errors) {
         $roomNo = $roomId ? (string)fetch_val("SELECT room_no FROM rooms WHERE id = ?", [$roomId]) : '';
         $subject = $roomNo !== '' ? 'Inquiry about Room ' . $roomNo : 'Room inquiry';
-        $result = in_transaction(function () use ($OLD, $phone, $roomId, $moveIn, $subject) {
+        $recordedMoveIn = inquiry_move_in_date($moveIn);      // the date they asked for, otherwise one month from today
+        $result = in_transaction(function () use ($OLD, $phone, $roomId, $moveIn, $recordedMoveIn, $subject) {
             $ref = new_ref_code();
-            $email = $OLD['email'] !== '' ? mb_strtolower($OLD['email']) : null;
-            // 1. register the person as a tenant from what they typed (or match the existing tenant)
-            $tenantId = inquiry_register_tenant([
-                'name'       => $OLD['name'],
-                'gender'     => $OLD['gender'],
-                'contact_no' => $phone,
-                'email'      => $email,
-                'occupation' => $OLD['occupation'],
-                'school'     => $OLD['school'],
-                'messenger'  => trim($OLD['messenger']),
-            ]);
-            // 2. record the inquiry
+            $email = mb_strtolower($OLD['email']);
+            // 1. record the inquiry and the customer's message
             q("INSERT INTO inquiries (ref_code, name, contact_no, email, room_id, preferred_move_in, occupation, gender, school_or_workplace, tenant_id, consent_at, subject, status, admin_unread, ip)
-               VALUES (?,?,?,?,?,?,?,?,?,?, NOW(), ?, 'new', 1, ?)",
+               VALUES (?,?,?,?,?,?,?,?,?, NULL, NOW(), ?, 'new', 1, ?)",
               [$ref, $OLD['name'], $phone, $email, $roomId, $moveIn, $OLD['occupation'] !== '' ? $OLD['occupation'] : null,
-               $OLD['gender'], $OLD['school'] !== '' ? $OLD['school'] : null, $tenantId, $subject, client_ip()]);
+               $OLD['gender'], $OLD['school'] !== '' ? $OLD['school'] : null, $subject, client_ip()]);
             $id = (int)db()->lastInsertId();
             q("INSERT INTO inquiry_messages (inquiry_id, sender, body) VALUES (?, 'customer', ?)", [$id, $OLD['message']]);
-            // 3. automatic reply: is the room open, or full?
-            $auto = inquiry_auto_reply($roomId, $moveIn, $OLD['gender'], $OLD['name'], $ref);
+            // 2. automatic reply: is the room open, or full?
+            $auto = inquiry_auto_reply($roomId, $recordedMoveIn, $OLD['gender'], $OLD['name'], $ref);
+            $tenantId = null;
+            $booking = null;
+            // 3. only when the room is confirmed: register the person as a tenant and record the reservation with the move-in date
+            if ($auto['result'] === 'confirmed') {
+                $isNew = false;
+                $tenantId = inquiry_register_tenant([
+                    'name'       => $OLD['name'],
+                    'gender'     => $OLD['gender'],
+                    'contact_no' => $phone,
+                    'email'      => $email,
+                    'occupation' => $OLD['occupation'],
+                    'school'     => $OLD['school'],
+                    'messenger'  => trim($OLD['messenger']),
+                ], $isNew);
+                q("UPDATE inquiries SET tenant_id = ? WHERE id = ?", [$tenantId, $id]);
+                $booking = $isNew ? inquiry_create_booking($tenantId, $auto['room'], $recordedMoveIn, $id, $ref) : null;
+                $auto['text'] = inquiry_confirmed_text($auto['room'], (int)$auto['free'], $OLD['name'], $ref, $recordedMoveIn, $booking);
+            }
             q("INSERT INTO inquiry_messages (inquiry_id, sender, body) VALUES (?, 'system', ?)", [$id, $auto['text']]);
             q("UPDATE inquiries SET auto_result = ? WHERE id = ?", [$auto['result'], $id]);
-            return ['ref' => $ref, 'id' => $id, 'auto' => $auto, 'tenant_id' => $tenantId, 'email' => $email];
+            unset($auto['room'], $auto['free']);
+            return ['ref' => $ref, 'id' => $id, 'auto' => $auto, 'tenant_id' => $tenantId, 'email' => $email, 'booking' => $booking];
         });
         throttle_hit('inquiry');
-        // 4. copy of the automatic reply by e-mail, when the person gave an address and e-mail is set up
+        $payload = ['ref' => $result['ref'], 'auto' => ['result' => $result['auto']['result'], 'title' => $result['auto']['title'], 'text' => $result['auto']['text']]];
+
+        // 4. answer the visitor FIRST, then send the e-mail copy, so nobody waits for the mail server
+        if ($ajax) {
+            respond_early(json_encode(['ok' => true] + $payload, JSON_UNESCAPED_UNICODE));
+        } else {
+            $_SESSION['inq_done'] = $payload;
+            respond_early('', 'text/html; charset=utf-8', 302, ['Location' => url('inquire.php?sent=1')]);
+        }
         try {
-            if ($result['email']) {
-                notify_tenant(['id' => $result['tenant_id'], 'email' => $result['email'], 'contact_no' => $phone], 'inquiry_reply',
-                    ['subject' => $result['auto']['title'] . ' (' . $result['ref'] . ')', 'body' => $result['auto']['text'] . "\n\nTo read replies and send follow-ups, open Check my inquiry on our website and enter code " . $result['ref'] . ' with your contact number.'],
-                    ['inquiry_id' => $result['id'], 'dedupe' => 'inq' . $result['id'], 'auto_only' => true]);
-            }
+            notify_tenant(['id' => $result['tenant_id'], 'email' => $result['email'], 'contact_no' => $phone], 'inquiry_reply',
+                ['subject' => $result['auto']['title'] . ' (' . $result['ref'] . ')', 'body' => $result['auto']['text'] . "\n\nTo read replies and send follow-ups, open Check my inquiry on our website and enter code " . $result['ref'] . ' with your contact number.'],
+                ['inquiry_id' => $result['id'], 'reservation_id' => $result['booking']['id'] ?? null, 'dedupe' => 'inq' . $result['id'], 'auto_only' => true]);
         } catch (Throwable $e) {
             error_log('[PBH] inquiry e-mail failed: ' . $e->getMessage());
         }
-        $payload = ['ref' => $result['ref'], 'auto' => ['result' => $result['auto']['result'], 'title' => $result['auto']['title'], 'text' => $result['auto']['text']]];
-        if ($ajax) {
-            inquiry_json(['ok' => true] + $payload);
-        }
-        $_SESSION['inq_done'] = $payload;
-        redirect('inquire.php?sent=1');
+        exit;
     }
 }
 
@@ -185,7 +196,7 @@ public_header('Send an inquiry', 'inquire', 'Ask the landlord about rooms, rates
       <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
       <div class="row-2">
-        <label>Fullname <span class="req">*</span>
+        <label>Full Name <span class="req">*</span>
           <input type="text" name="name" value="<?= e(old('name')) ?>" maxlength="120" required autocomplete="name">
         </label>
         <label>Contact number <span class="req">*</span>
@@ -194,7 +205,7 @@ public_header('Send an inquiry', 'inquire', 'Ask the landlord about rooms, rates
       </div>
       <div class="row-2">
         <label>Email <span class="req">*</span>
-          <input type="email" name="email" value="<?= e(old('email')) ?>" maxlength="150" autocomplete="email">
+          <input type="email" name="email" value="<?= e(old('email')) ?>" maxlength="150" required autocomplete="email">
         </label>
         <label>I am a
           <select name="occupation">

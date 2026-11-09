@@ -37,14 +37,14 @@ if ($status === 'active' || $status === 'inactive') {
 }
 $w = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 $total = (int)fetch_val("SELECT COUNT(*) FROM tenants t $w", $params);
-$pg = paginate($total, 15);
+$pg = paginate($total, 10, 'page', '', true);
 $rows = fetch_all("SELECT t.*,
         (SELECT GROUP_CONCAT(DISTINCT r.room_no ORDER BY r.room_no SEPARATOR ', ')
            FROM reservations v JOIN rooms r ON r.id = v.room_id
           WHERE v.tenant_id = t.id AND v.status = 'checked_in') AS current_room
       FROM tenants t $w ORDER BY t.full_name LIMIT {$pg['per']} OFFSET {$pg['offset']}", $params);
 
-admin_header('Tenants', 'tenants');
+admin_header('Tenants', 'tenants', ['fill' => true]);
 page_head('Tenants', 'Registered tenants and customers.', '<a class="btn btn-primary" href="' . e(url('admin/tenant_form.php')) . '">Register tenant</a>');
 ?>
 <section class="panel">

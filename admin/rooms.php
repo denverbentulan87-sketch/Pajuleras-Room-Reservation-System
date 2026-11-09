@@ -22,7 +22,7 @@ if (is_post()) {
 }
 
 $rooms = rooms_with_status(false);
-admin_header('Rooms', 'rooms');
+admin_header('Rooms', 'rooms', ['fill' => true]);
 page_head('Rooms', 'Set up rooms, beds, rates, and what shows on the public website.',
     '<a class="btn btn-primary" href="' . e(url('admin/room_form.php')) . '">Add room</a>');
 ?>

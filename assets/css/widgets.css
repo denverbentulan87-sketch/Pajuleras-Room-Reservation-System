@@ -206,3 +206,11 @@
 .gc-due:has(input:checked) { border-color: #0b57c4; background: #eaf2ff; }
 .gc-due-text { display: grid; gap: .1rem; }
 .gc-due-text small { color: var(--slate-2); }
+
+/* GCash QR beside the number */
+.gc-wrap { display: grid; gap: .8rem; }
+.gc-qr { margin: 0; display: grid; justify-items: center; gap: .6rem; padding: 1rem; border-radius: 16px; border: 1px solid #cfe0fa; background: #fff; text-align: center; }
+.gc-qr img { width: min(220px, 62vw); height: auto; aspect-ratio: 1; object-fit: contain; border-radius: 12px; border: 1px solid #e4e9f2; background: #fff; display: block; }
+.gc-qr figcaption { display: grid; gap: .1rem; font-size: .88rem; color: var(--slate-2); max-width: 26rem; }
+.gc-qr figcaption strong { color: #0b3c8a; font-size: .98rem; }
+@media (min-width: 480px) { .gc-qr { grid-template-columns: auto 1fr; text-align: left; justify-items: start; align-items: center; gap: 1.1rem; } }

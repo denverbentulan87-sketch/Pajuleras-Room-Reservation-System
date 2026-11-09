@@ -177,7 +177,8 @@ function gcash_lookup(string $resNo, string $contact): array
                     'note' => ($res['status'] === 'confirmed' && $res['hold_until']) ? 'Pay by ' . fmt_datetime($res['hold_until']) . ' or the hold ends' : ''];
     }
     foreach (payment_schedule($res, $fin) as $it) {
-        if ($it['state'] === 'paid' || $it['when'] === 'future' && $res['status'] !== 'checked_in') {
+        // before move-in, the advance comes first; once it is paid, the rest of what is due at move-in is offered too
+        if ($it['state'] === 'paid' || ($it['when'] === 'future' && $res['status'] !== 'checked_in' && $fin['advance_needed'] > 0)) {
             continue;
         }
         $left = round($it['amount'] - $it['paid'], 2);

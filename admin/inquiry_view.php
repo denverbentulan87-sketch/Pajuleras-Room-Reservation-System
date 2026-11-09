@@ -15,6 +15,10 @@ if (is_post()) {
     if ($action === 'reply') {
         $body = post_str('body', 2000);
         if (mb_strlen($body) < 2) {
+            if (is_modal()) {
+                flash('error', 'Write your reply first.');
+                redirect('admin/inquiry_view.php?id=' . $id);
+            }
             $errors[] = 'Write your reply first.';
         } else {
             in_transaction(function () use ($id, $body) {
@@ -78,11 +82,14 @@ page_head($i['name'], $i['subject'] . ' (' . $i['ref_code'] . ')', inquiry_badge
         <?php endforeach; ?>
       </div>
       <?php if ($i['status'] !== 'closed'): ?>
-      <form method="post" class="form reply-form">
-        <?= csrf_field() ?><input type="hidden" name="action" value="reply">
-        <label>Reply<textarea name="body" rows="4" maxlength="2000" required placeholder="Write your reply. The customer reads it with their inquiry code."></textarea></label>
-        <button class="btn btn-primary" type="submit">Send reply</button>
-      </form>
+      <details class="action-box reply-box"><summary class="btn btn-primary"><?= icon('inbox') ?><span>Reply to <?= e(first_name($i['name'])) ?></span></summary>
+        <form method="post" class="form reply-form">
+          <?= csrf_field() ?><input type="hidden" name="action" value="reply">
+          <p class="m-sub"><?= e($i['name']) ?> reads your reply with the inquiry code <strong><?= e($i['ref_code']) ?></strong>. You can also call or text <?= e($i['contact_no']) ?>.</p>
+          <label>Your reply <span class="req">*</span><textarea name="body" rows="6" maxlength="2000" required placeholder="Write your reply here."></textarea></label>
+          <div class="form-actions"><button class="btn btn-primary" type="submit">Send reply</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+        </form>
+      </details>
       <?php else: ?>
         <p class="muted">This inquiry is closed. Reopen it to reply.</p>
       <?php endif; ?>

@@ -21,7 +21,7 @@ if ($search !== '') {
 }
 $w = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 $total = (int)fetch_val("SELECT COUNT(*) FROM inquiries i $w", $params);
-$pg = paginate($total, 15);
+$pg = paginate($total, 10, 'page', '', true);
 $rows = fetch_all("SELECT i.*, r.room_no,
         (SELECT body FROM inquiry_messages m WHERE m.inquiry_id = i.id ORDER BY m.id DESC LIMIT 1) AS last_body,
         (SELECT sender FROM inquiry_messages m WHERE m.inquiry_id = i.id ORDER BY m.id DESC LIMIT 1) AS last_sender
@@ -30,7 +30,7 @@ $rows = fetch_all("SELECT i.*, r.room_no,
 $counts = ['unread' => (int)fetch_val("SELECT COUNT(*) FROM inquiries WHERE admin_unread = 1 AND status <> 'closed'")];
 foreach (fetch_all("SELECT status, COUNT(*) c FROM inquiries GROUP BY status") as $c) $counts[$c['status']] = (int)$c['c'];
 
-admin_header('Inquiries', 'inquiries');
+admin_header('Inquiries', 'inquiries', ['fill' => true]);
 page_head('Inquiries', 'Messages from customers on the public website.');
 ?>
 <section class="panel">

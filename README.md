@@ -21,7 +21,7 @@ XAMPP (current version) already includes everything.
    1. choose `database/01_schema.sql` > **Go** (creates database `pajuleras_bh`, tables, the admin account)
    2. *(optional demo data)* choose `database/02_sample_data.sql` > **Go**
 4. Open **http://localhost/Pajuleras-Room-Reservation-System/**
-5. Landlord sign in: on the landing page click the **Landlord login** button in the footer (it is also in the mobile menu). It opens a sign-in pop-up.
+5. Landlord sign in: on the landing page click the **Landlord login** button in the floating side dock (next to **Pay with GCash**; there is also one in the footer). It opens a sign-in pop-up.
    There is no separate login page.
    * username `admin`, password `Pajuleras@2026`
    * You are **forced to choose a new password** at first sign-in.
@@ -117,9 +117,11 @@ uploads/      room photos uploaded by the landlord
 
 **Upgrading an older install?** In phpMyAdmin > Import, run `database/05_upgrade_add_auto_replies_and_reminders.sql` once.
 
-* **GCash is easy to find.** A blue "Pay by GCash" button sits in the menu, a blue "Pay with GCash" button floats on every page, there is a link under the home page buttons, and a full "Pay by GCash" section shows your number with a Copy button. Tenants can also check a report's status (pending, confirmed with a receipt number, or not confirmed with the reason) using their report code and contact number.
+* **GCash is easy to find.** A blue "Pay with GCash" button floats in the side dock on every page (the duplicate menu item was removed), there is a link under the home page buttons, and a full "Pay by GCash" section shows your number with a Copy button. Tenants can also check a report's status (pending, confirmed with a receipt number, or not confirmed with the reason) using their report code and contact number.
 * **Inquiries get an instant, honest reply.** The moment someone sends an inquiry, the system checks the room (open bed for their move-in date, gender policy, under repair) and replies in the pop-up, in their inquiry conversation, and by e-mail if they gave one: **Confirmed** (room has an open bed), **Not confirmed** (room is full, closed, or for the other gender, with rooms that do have space), or a list of open beds when no room was chosen. "Confirmed" never holds a bed. Beds are only held when you confirm the reservation.
-* **New people are registered automatically.** From the inquiry (name, gender, contact number, e-mail, school or workplace) a tenant record is created and marked "From inquiry". If the contact number already belongs to a tenant, no duplicate is made. People must tick a consent box first.
+* **Inquiry → automatic confirmation → tenant → move-in date.** The moment an inquiry is sent (e-mail is required), the system checks the room. If a bed is open it replies **"Confirmed. Approach me personally for more information."** (with the room, move-in date, reservation number and how to pay, GCash first) and e-mails the same reply. Only then is the person **registered as a tenant** (marked "From inquiry") and a **pending reservation** recorded with the **move-in date** (the date they asked for, or one month after the inquiry). If the room is full, closed or for the other gender, the reply says NOT CONFIRMED with rooms that are open, and nobody is registered. A contact number the system already knows is never shown reservation details (privacy): the landlord handles those personally. A pending reservation does not hold a bed until the advance is paid or the landlord confirms.
+* **Move-in reminder.** Tenants who have not moved in yet get an e-mail a set number of days before the move-in date (Settings > Reminders, default 7) and again on the day. A Messenger copy is prepared in Admin > Payment reminders for one-tap sending (Facebook does not allow websites to message people by themselves).
+* **No waiting.** The visitor gets the reply instantly; e-mails are sent right after the page is answered. The same applies when the landlord approves a GCash payment or confirms/cancels a reservation.
 * **Rent due dates and payment reminders.** Rent is due one month after move-in, then every month on the same day. Each reservation shows a **Payment schedule** (what is due, when, paid or missing). Tenants are reminded: a few days before the due date, on the due date, and while a payment is missing or only partly paid (repeating every few days, up to a limit). Each reminder is sent only once per due date. Set the timing in **Settings > Reminders & notifications**.
   * **E-mail** is sent automatically once you fill in `config/config.php` (the settings page explains how, with a test button). The secret stays in that file, not in the database. There is no SMS: payments and reminders use e-mail and Messenger only.
   * **Messenger** (and any channel that is not set up or fails) is prepared in **Admin > Payment reminders** with one-tap buttons. Facebook does not allow automatic Messenger messages without an approved app, so this is always one tap.
@@ -164,3 +166,26 @@ Settings > Reminders & notifications > **Test Messenger with**: type a friend's 
 ### Facebook on the website
 Settings > Boarding house > **Facebook page link** (for example `facebook.com/YourPageName`) now shows on the website: a "Message us on Messenger" line in the contact section and the footer, and a Messenger button in the chat when someone asks how to contact you. With a `profile.php?id=...` link it shows "Visit our Facebook page" instead, because that kind of link cannot open a chat. Leave it empty to show nothing.
 
+
+
+## Admin look and feel
+
+The admin panel uses a white theme that matches the public website: Fraunces for headlines and figures, Instrument Sans for text, and the same forest green and ochre.
+Styles live in the last block of `assets/css/admin.css`. The dashboard (`admin/index.php`) has animated figures, a smooth collections curve with a hover read-out, and an occupancy ring. Their motion is in `assets/js/dash.js` and turns off when the visitor prefers reduced motion.
+
+### Pop-up forms and the sidebar
+
+* The sidebar item for the page you are on is a solid green button, so it stands apart from the page content.
+* Every add, edit and delete opens in a pop-up (a bottom sheet on phones): rooms, tenants, reservations, payments, voiding a payment, replying to an inquiry, the reservation actions and every Settings section. Settings now shows a read-only summary with an **Edit** button for each section. Delete asks for confirmation in a pop-up too. Without JavaScript, every one of these still works as a normal page.
+
+### Reservations, lists and deleting tenants
+
+* **Confirming a reservation** opens a pop-up with the move-in date (prefilled; if none is set it defaults to one month from today). On confirm the system checks the room is free for those dates, registers the person as an active tenant, saves the move-in date, and holds the bed **until the move-in day**, which is when the advance is due. The tenant gets the "room is held" e-mail with that date. If the advance is not paid by the end of the move-in day, the hold ends and the bed is released automatically. If it was already paid, the bed is secured right away.
+* **Long lists** (inquiries, reservations, tenants, payments, GCash, activity log, reminders) show 10 rows at a time with numbered pages, Previous/Next, and a rows-per-page switch (5, 10, 20, 50).
+* **Sign out** asks for confirmation first.
+* **Delete tenant permanently** (tenant page, bottom): after typing the tenant code, removes the tenant with all their reservations, payments, GCash proofs and inquiries. It is blocked while the tenant has a pending, confirmed or checked-in reservation. "Erase personal details" is still there if you want to keep the payment records.
+
+### GCash QR code and full-width pages
+
+* **GCash QR code:** open **GCash** in the sidebar and use the QR panel at the top to add, replace, download or remove your QR code (JPG, PNG or WebP, up to 3 MB). Tenants then see it next to your GCash number in the Pay with GCash pop-up and on the Pay with GCash page, so they can scan and pay.
+* The table pages (inquiries, reservations, tenants, payments, GCash, reminders, rooms, reports, settings, activity) now use the whole content area: wider columns, a search box that stretches, and the page controls at the bottom of the panel.

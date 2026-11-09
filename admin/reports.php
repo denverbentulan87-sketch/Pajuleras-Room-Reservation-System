@@ -106,7 +106,7 @@ if (get_str('export') === 'csv') {
 }
 
 $usesDates = in_array($type, ['payments', 'reservations'], true);
-admin_header('Reports', 'reports');
+admin_header('Reports', 'reports', ['fill' => true]);
 page_head('Reports', 'View, print, or download your records.');
 ?>
 <section class="panel no-print">

@@ -22,7 +22,7 @@ if ($to)   { $where[] = "v.move_in_date <= ?"; $params[] = $to; }
 $w = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $total = (int)fetch_val("SELECT COUNT(*) FROM reservations v JOIN tenants t ON t.id = v.tenant_id $w", $params);
-$pg = paginate($total, 15);
+$pg = paginate($total, 10, 'page', '', true);
 $rows = fetch_all("SELECT v.*, t.full_name, t.contact_no, r.room_no
                      FROM reservations v JOIN tenants t ON t.id = v.tenant_id JOIN rooms r ON r.id = v.room_id
                      $w ORDER BY FIELD(v.status,'pending','confirmed','checked_in','completed','cancelled'), v.move_in_date DESC, v.id DESC
@@ -32,7 +32,7 @@ $roomList = fetch_all("SELECT id, room_no FROM rooms ORDER BY LENGTH(room_no), r
 $counts = [];
 foreach (fetch_all("SELECT status, COUNT(*) c FROM reservations GROUP BY status") as $c) $counts[$c['status']] = (int)$c['c'];
 
-admin_header('Reservations', 'reservations');
+admin_header('Reservations', 'reservations', ['fill' => true]);
 page_head('Reservations', 'Track every reservation from pending to check-out.', '<a class="btn btn-primary" href="' . e(url('admin/reservation_form.php')) . '">New reservation</a>');
 ?>
 <section class="panel">
